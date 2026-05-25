@@ -1,9 +1,6 @@
 FROM scratch
 ARG TARGETARCH
 
-ENV cloudDomain=${cloudDomain:-"127.0.0.1.nip.io"}
-ENV cloudPort=${cloudPort:-"443"}
-
 COPY registry_${TARGETARCH} registry
 COPY charts charts
 COPY entrypoint.sh entrypoint.sh

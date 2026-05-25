@@ -84,7 +84,7 @@ export default function FileManager({ ...styles }: FlexProps) {
   const { t: toolsT } = useTranslation('tools');
   const session = useSessionStore((s) => s.session);
 
-  const { isUpdating, prefix, client: s3client, currentBucket: bucket, secret } = useOssStore();
+  const { isUpdating, prefix, client: s3client, currentBucket: bucket } = useOssStore();
   const Bucket = bucket?.name || '';
   const Prefix = prefix.length === 0 ? '' : [...prefix, ''].join('/');
   const [pageStack, setpageStack] = useState<string[]>([]);
@@ -104,10 +104,7 @@ export default function FileManager({ ...styles }: FlexProps) {
 
   const { copyData } = useCopyData();
   const objectsQuery = useQuery({
-    queryKey: [
-      QueryKey.minioFileList,
-      { Bucket, Prefix, MaxKeys, ContinuationToken, s3client, session, secret }
-    ],
+    queryKey: [QueryKey.minioFileList, Bucket, Prefix, MaxKeys, ContinuationToken, session?.user?.id],
     queryFn: () =>
       listObjects(s3client!)({ Bucket, Prefix, Delimiter: '/', ContinuationToken, MaxKeys }),
     select(data) {

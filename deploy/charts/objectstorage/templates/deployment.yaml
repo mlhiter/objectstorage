@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "objectstorage-frontend.fullname" . }}
+  name: {{ include "objectstorage.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "objectstorage-frontend.labels" . | nindent 4 }}
+    {{- include "objectstorage.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.frontend.replicaCount }}
   revisionHistoryLimit: 1
   selector:
     matchLabels:
-      {{- include "objectstorage-frontend.selectorLabels" . | nindent 6 }}
+      {{- include "objectstorage.selectorLabels" . | nindent 6 }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -19,28 +19,28 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "objectstorage-frontend.labels" . | nindent 8 }}
-      {{- with .Values.podAnnotations }}
+        {{- include "objectstorage.labels" . | nindent 8 }}
+      {{- with .Values.frontend.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with .Values.frontend.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
-          image: {{ .Values.image | quote }}
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
-          {{- if .Values.securityContext }}
+          image: {{ .Values.frontend.image | quote }}
+          imagePullPolicy: {{ .Values.frontend.imagePullPolicy }}
+          {{- if .Values.frontend.securityContext }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            {{- toYaml .Values.frontend.securityContext | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
           env:
             - name: MONITOR_URL
               value: {{ .Values.objectstorageConfig.monitorUrl | quote }}
@@ -48,17 +48,17 @@ spec:
               value: {{ .Values.objectstorageConfig.appLaunchpadUrl | quote }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.frontend.service.port }}
               protocol: TCP
           volumeMounts:
             - name: object-storage-frontend-volume
               mountPath: /app/data/config.yaml
               subPath: config.yaml
-      {{- with .Values.affinity }}
+      {{- with .Values.frontend.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
         - name: object-storage-frontend-volume
           configMap:
-            name: {{ include "objectstorage-frontend.fullname" . }}-config
+            name: {{ include "objectstorage.fullname" . }}-config

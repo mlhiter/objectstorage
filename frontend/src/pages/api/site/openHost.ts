@@ -67,7 +67,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
               subPath: 'nginx.conf',
               key: 'nginx.conf',
               volumeName: 'nginx-conf',
-              value: await generateNginxConfig(bucket)
+              value: await generateNginxConfig(
+                bucket,
+                config.objectStorage.components.objectStorage.internalEndpoint
+              )
             }
           ],
           secret: {
@@ -102,14 +105,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   }
 }
 
-async function generateNginxConfig(bucketName: string) {
+async function generateNginxConfig(bucketName: string, objectStorageEndpoint: string) {
   try {
     const templatePath = path.join(process.cwd(), 'src', 'templates', 'nginx', 'site-host');
     const template = await fs.readFile(templatePath, 'utf-8');
 
     const compiledTemplate = _.template(template);
 
-    const nginxConfig = compiledTemplate({ bucket: bucketName });
+    const nginxConfig = compiledTemplate({ bucket: bucketName, objectStorageEndpoint });
     return nginxConfig;
   } catch (error) {
     console.error('Error generating nginx conf', error);

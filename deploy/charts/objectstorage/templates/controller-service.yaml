@@ -1,0 +1,20 @@
+{{- if .Values.controller.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "objectstorage.monitorServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitor
+spec:
+  type: {{ .Values.controller.monitor.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.controller.monitor.service.port }}
+      protocol: TCP
+      targetPort: monitor
+  selector:
+    control-plane: controller-manager
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

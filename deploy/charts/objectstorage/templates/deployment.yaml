@@ -42,8 +42,10 @@ spec:
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
           env:
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              value: {{ .Values.platform.tlsRejectUnauthorized | quote }}
             - name: MONITOR_URL
-              value: {{ .Values.objectstorageConfig.monitorUrl | quote }}
+              value: {{ include "objectstorage.monitorUrl" . | quote }}
             - name: APP_LAUNCHPAD_URL
               value: {{ .Values.objectstorageConfig.appLaunchpadUrl | quote }}
           ports:

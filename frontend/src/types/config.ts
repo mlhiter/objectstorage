@@ -31,6 +31,10 @@ const ObjectStorageSchema = z.strictObject({
       }),
       appLaunchpad: z.strictObject({
         url: z.string().describe('AppLaunchpad backend base URL')
+      }),
+      objectStorage: z.strictObject({
+        internalEndpoint: z.string().describe('Internal object storage service endpoint'),
+        externalEndpoint: z.string().describe('External object storage service endpoint')
       })
     })
     .describe('External service integrations'),

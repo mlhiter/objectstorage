@@ -1,0 +1,84 @@
+{{- if .Values.controller.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: objectstorage-controller-manager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+    control-plane: controller-manager
+spec:
+  replicas: {{ .Values.controller.replicaCount }}
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        {{- include "objectstorage.labels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
+        control-plane: controller-manager
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.controller.podSecurityContext | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.controller.affinity | nindent 8 }}
+      containers:
+        - name: manager
+          image: {{ .Values.controller.image | quote }}
+          imagePullPolicy: {{ .Values.controller.imagePullPolicy }}
+          command:
+            - /manager
+          args:
+            - --health-probe-bind-address=:8081
+            - --metrics-bind-address=127.0.0.1:8080
+            - --monitor-bind-address=:{{ .Values.controller.monitor.port }}
+            - --leader-elect
+          env:
+            - name: OSNamespace
+              value: {{ include "objectstorage.objectStorageNamespace" . | quote }}
+            - name: OSAdminSecret
+              value: {{ include "objectstorage.objectStorageAdminSecret" . | quote }}
+            - name: OSInternalEndpoint
+              value: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
+            - name: OSExternalEndpoint
+              value: {{ include "objectstorage.apiHost" . | quote }}
+            - name: OSUDetectionCycleSeconds
+              value: {{ .Values.controller.userDetectionCycleSeconds | quote }}
+            - name: OSBDetectionCycleSeconds
+              value: {{ .Values.controller.bucketDetectionCycleSeconds | quote }}
+            - name: OBJECT_STORAGE_INSTANCE
+              value: {{ include "objectstorage.objectStorageMetricsInstance" . | quote }}
+            - name: PROMETHEUS_SERVICE_HOST
+              value: {{ .Values.controller.monitor.prometheusUrl | quote }}
+          ports:
+            - name: monitor
+              containerPort: {{ .Values.controller.monitor.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.controller.securityContext | nindent 12 }}
+      serviceAccountName: objectstorage-controller-manager
+      terminationGracePeriodSeconds: 10
+{{- end }}

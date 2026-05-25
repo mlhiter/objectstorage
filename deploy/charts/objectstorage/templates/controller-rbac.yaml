@@ -1,0 +1,188 @@
+{{- if .Values.controller.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: objectstorage-controller-manager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: objectstorage-leader-election-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: objectstorage-manager-role
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - objectstorage.sealos.io
+    resources:
+      - objectstoragebuckets
+    verbs:
+      - create
+      - delete
+      - deletecollection
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - objectstorage.sealos.io
+    resources:
+      - objectstoragebuckets/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - objectstorage.sealos.io
+    resources:
+      - objectstoragebuckets/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - objectstorage.sealos.io
+    resources:
+      - objectstorageusers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - objectstorage.sealos.io
+    resources:
+      - objectstorageusers/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - objectstorage.sealos.io
+    resources:
+      - objectstorageusers/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - resourcequotas
+    verbs:
+      - get
+      - patch
+      - update
+      - create
+      - delete
+      - watch
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - resourcequotas/status
+    verbs:
+      - get
+      - patch
+      - update
+      - create
+      - delete
+      - watch
+      - list
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - selfsubjectaccessreviews
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: objectstorage-leader-election-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: objectstorage-leader-election-role
+subjects:
+  - kind: ServiceAccount
+    name: objectstorage-controller-manager
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: objectstorage-manager-rolebinding
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: objectstorage-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: objectstorage-controller-manager
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -1,6 +1,5 @@
-FROM --platform=$BUILDPLATFORM scratch
+FROM scratch
 ARG TARGETARCH
-ARG MINIO_SERVICE_TAG=latest
 
 ENV cloudDomain=${cloudDomain:-"127.0.0.1.nip.io"}
 ENV cloudPort=${cloudPort:-"443"}
@@ -8,7 +7,5 @@ ENV cloudPort=${cloudPort:-"443"}
 COPY registry_${TARGETARCH} registry
 COPY charts charts
 COPY entrypoint.sh entrypoint.sh
-
-COPY --from=ghcr.io/labring/sealos-cloud-minio-service:${MINIO_SERVICE_TAG} registry registry
 
 CMD ["bash entrypoint.sh"]

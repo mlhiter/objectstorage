@@ -32,7 +32,6 @@ jobs:
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       is_release: ${{ steps.meta.outputs.is_release }}
-      minio_service_tag: ${{ steps.meta.outputs.minio_service_tag }}
       oss_prefix: ${{ steps.meta.outputs.oss_prefix }}
       oss_tag: ${{ steps.meta.outputs.oss_tag }}
     steps:
@@ -59,19 +58,16 @@ jobs:
               exit 1
             fi
             IS_RELEASE="false"
-            MINIO_SERVICE_TAG="latest"
             OSS_TAG="main-${INPUT_SHA}"
             OSS_PREFIX="ci/main/${INPUT_SHA}"
           else
             IS_RELEASE="true"
-            MINIO_SERVICE_TAG="${IMAGE_TAG}"
             OSS_TAG="${IMAGE_TAG}"
             OSS_PREFIX="release/${IMAGE_TAG}"
           fi
 
           echo "image_tag=${IMAGE_TAG}" >> "${GITHUB_OUTPUT}"
           echo "is_release=${IS_RELEASE}" >> "${GITHUB_OUTPUT}"
-          echo "minio_service_tag=${MINIO_SERVICE_TAG}" >> "${GITHUB_OUTPUT}"
           echo "oss_prefix=${OSS_PREFIX}" >> "${GITHUB_OUTPUT}"
           echo "oss_tag=${OSS_TAG}" >> "${GITHUB_OUTPUT}"
 
@@ -297,21 +293,12 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE_TAG="${{ needs.meta.outputs.image_tag }}"
-          MINIO_SERVICE_TAG="${{ needs.meta.outputs.minio_service_tag }}"
           FRONTEND_IMAGE="${GHCR_FRONTEND_RUNTIME_IMAGE}:${IMAGE_TAG}"
           CONTROLLER_IMAGE="${GHCR_CONTROLLER_RUNTIME_IMAGE}:${IMAGE_TAG}"
-          MINIO_SERVICE_IMAGE="ghcr.io/labring/sealos-cloud-minio-service:${MINIO_SERVICE_TAG}"
 
           sudo sealos login -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}" ghcr.io
           sed -i -E "/^frontend:/,/^[^[:space:]]/ s#^([[:space:]]*image:[[:space:]]*).*#\\1${FRONTEND_IMAGE}#" charts/objectstorage/values.yaml
           sed -i -E "/^controller:/,/^[^[:space:]]/ s#^([[:space:]]*image:[[:space:]]*).*#\\1${CONTROLLER_IMAGE}#" charts/objectstorage/values.yaml
-          mkdir -p charts/objectstorage/templates
-          docker create --name minio-service "${MINIO_SERVICE_IMAGE}"
-          docker cp minio-service:/manifests/deploy.yaml.tmpl charts/objectstorage/templates/minio-service.yaml
-          docker rm minio-service
-          sed -i -E 's#\\{BASE64_TOKEN\\}#{{ .Values.objectstorageConfig.prometheusToken }}#g' charts/objectstorage/templates/minio-service.yaml
-          sed -i -E 's#\\{\\{ \\.cloudDomain \\}\\}#{{ .Values.objectstorageConfig.cloudDomain }}#g' charts/objectstorage/templates/minio-service.yaml
-          sed -i -E 's#secretName: wildcard-cert#secretName: {{ .Values.objectstorageConfig.certSecretName | quote }}#g' charts/objectstorage/templates/minio-service.yaml
           sudo sealos registry save --registry-dir=registry_${{ matrix.arch }} --arch ${{ matrix.arch }} .
 
       - name: Set up Docker Buildx
@@ -326,8 +313,6 @@ jobs:
           cache-from: type=gha,scope=sealos-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=sealos-${{ matrix.arch }}
           platforms: ${{ matrix.platform }}
-          build-args: |
-            MINIO_SERVICE_TAG=${{ needs.meta.outputs.minio_service_tag }}
           tags: |
             ${{ env.GHCR_SEALOS_IMAGE }}:${{ needs.meta.outputs.image_tag }}-${{ matrix.arch }}
           labels: |
@@ -344,6 +329,7 @@ jobs:
           docker pull "${GHCR_SEALOS_IMAGE}:${IMAGE_TAG}-${{ matrix.arch }}"
           mkdir -p release-assets
           docker save "${GHCR_SEALOS_IMAGE}:${IMAGE_TAG}-${{ matrix.arch }}" | gzip > "release-assets/objectstorage-cluster-${IMAGE_TAG}-${{ matrix.arch }}.tar.gz"
+          ls -lh "release-assets/objectstorage-cluster-${IMAGE_TAG}-${{ matrix.arch }}.tar.gz"
 
       - name: Upload sealos image package
         uses: actions/upload-artifact@v4

@@ -32,6 +32,7 @@ import (
 
 	objectstoragev1 "github/labring/sealos/controllers/objectstorage/api/v1"
 	"github/labring/sealos/controllers/objectstorage/controllers"
+	"github/labring/sealos/controllers/objectstorage/internal/monitor"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -51,8 +52,10 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var monitorAddr string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&monitorAddr, "monitor-bind-address", ":9090", "The address the object storage monitor endpoint binds to. Set to 0 to disable.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -104,6 +107,11 @@ func main() {
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+
+	if err := mgr.Add(monitor.New(monitorAddr, ctrl.Log.WithName("minio-monitor"))); err != nil {
+		setupLog.Error(err, "unable to add minio monitor")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

@@ -44,9 +44,83 @@ frontend:
                     - object-storage-frontend
             topologyKey: "kubernetes.io/hostname"
 
+platform:
+  tlsRejectUnauthorized: "1"
+
 controller:
+  enabled: true
   image: ghcr.io/labring/sealos-objectstorage-controller:latest
   imagePullPolicy: Always
+  replicaCount: 1
+  osNamespace: ""
+  osAdminSecret: ""
+  osInternalEndpoint: ""
+  osExternalEndpoint: ""
+  objectStorageService:
+    metricsInstance: ""
+  userDetectionCycleSeconds: "300"
+  bucketDetectionCycleSeconds: "300"
+  monitor:
+    port: 9090
+    serviceName: object-storage-monitor
+    prometheusUrl: "http://vmselect-victoria-metrics-k8s-stack.vm.svc:8481/select/0/prometheus/"
+    service:
+      type: ClusterIP
+      port: 9090
+    ingress:
+      className: nginx
+      host: ""
+      annotations: {}
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 5m
+      memory: 64Mi
+  podSecurityContext:
+    runAsNonRoot: true
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - "ALL"
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                  - amd64
+                  - arm64
+                  - ppc64le
+                  - s390x
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                  - linux
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: "control-plane"
+                  operator: In
+                  values:
+                    - controller-manager
+            topologyKey: "kubernetes.io/hostname"
+
+objectStorage:
+  namespace: objectstorage-system
+  serviceName: object-storage
+  servicePort: 80
+  adminSecret: object-storage-user-0
+  externalHost: ""
+  metricsInstance: ""
 
 objectstorageConfig:
   cloudDomain: "127.0.0.1.nip.io"
@@ -54,7 +128,7 @@ objectstorageConfig:
   httpPort: ""
   disableHttps: false
   certSecretName: "wildcard-cert"
-  monitorUrl: "http://object-storage-monitor.objectstorage-system.svc.cluster.local:9090/q"
+  monitorUrl: ""
   billingUrl: ""
   billingSecret: ""
   appLaunchpadUrl: "http://applaunchpad-frontend.applaunchpad-frontend.svc.cluster.local:3000/api/v1alpha"
@@ -65,3 +139,11 @@ objectstorageConfig:
   hostingNetworkProtocol: "HTTP"
   hostingNetworkPort: 80
   prometheusToken: ""
+
+imagePullSecrets: []
+
+cloudDomain: ""
+cloudPort: ""
+httpPort: ""
+disableHttps: ""
+certSecretName: ""

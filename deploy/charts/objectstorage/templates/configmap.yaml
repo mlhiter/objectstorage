@@ -8,20 +8,27 @@ metadata:
 data:
   config.yaml: |-
     cloud:
-      domain: {{ .Values.objectstorageConfig.cloudDomain | quote }}
-      port: {{ default 443 .Values.objectstorageConfig.cloudPort }}
+      domain: {{ default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain | quote }}
+      {{- if eq (include "objectstorage.scheme" .) "http" }}
+      port: {{ default 80 (default .Values.objectstorageConfig.httpPort .Values.httpPort) }}
+      {{- else }}
+      port: {{ default 443 (default .Values.objectstorageConfig.cloudPort .Values.cloudPort) }}
+      {{- end }}
     objectStorage:
       resources:
         hostingPodCpuMilliCores: {{ .Values.objectstorageConfig.hostingPodCpuMilliCores }}
         hostingPodMemoryMiB: {{ .Values.objectstorageConfig.hostingPodMemoryMiB }}
       components:
         monitoring:
-          url: {{ .Values.objectstorageConfig.monitorUrl | quote }}
+          url: {{ include "objectstorage.monitorUrl" . | quote }}
         billing:
           url: {{ .Values.objectstorageConfig.billingUrl | quote }}
           secret: {{ .Values.objectstorageConfig.billingSecret | quote }}
         appLaunchpad:
           url: {{ .Values.objectstorageConfig.appLaunchpadUrl | quote }}
+        objectStorage:
+          internalEndpoint: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
+          externalEndpoint: {{ include "objectstorage.apiHost" . | quote }}
       realName:
         appTokenJwtKey: {{ .Values.objectstorageConfig.appTokenJwtKey | quote }}
       hosting:

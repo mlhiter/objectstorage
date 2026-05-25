@@ -1,0 +1,40 @@
+# User-customizable values for the Sealos Object Storage application chart.
+
+frontend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+
+controller:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 5m
+      memory: 64Mi
+
+objectStorage:
+  namespace: objectstorage-system
+  serviceName: object-storage
+  servicePort: 80
+  adminSecret: object-storage-user-0
+  externalHost: ""
+  metricsInstance: ""
+
+objectstorageConfig:
+  monitorUrl: ""
+  billingUrl: ""
+  billingSecret: ""
+  appLaunchpadUrl: "http://applaunchpad-frontend.applaunchpad-frontend.svc.cluster.local:3000/api/v1alpha"
+  appTokenJwtKey: ""
+  hostingPodCpuMilliCores: 200
+  hostingPodMemoryMiB: 128
+  hostingAppNamePrefix: "static-host"
+  hostingNetworkProtocol: "HTTP"
+  hostingNetworkPort: 80

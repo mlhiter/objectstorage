@@ -1,0 +1,57 @@
+{{- if .Values.controller.enabled }}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  labels:
+    namespace: {{ .Release.Namespace }}
+    release: prometheus
+  name: object-storage-cluster
+  namespace: {{ .Release.Namespace }}
+spec:
+  bearerTokenSecret:
+    key: token
+    name: object-storage-probe
+  jobName: object-storage-cluster-job
+  targets:
+    staticConfig:
+      targets:
+        - {{ include "objectstorage.objectStorageEndpoint" . }}
+  vmProberSpec:
+    path: /minio/v2/metrics/cluster
+    scheme: http
+    url: {{ include "objectstorage.objectStorageEndpoint" . }}
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  labels:
+    namespace: {{ .Release.Namespace }}
+    release: prometheus
+  name: object-storage-bucket
+  namespace: {{ .Release.Namespace }}
+spec:
+  bearerTokenSecret:
+    key: token
+    name: object-storage-probe
+  jobName: object-storage-bucket-job
+  targets:
+    staticConfig:
+      targets:
+        - {{ include "objectstorage.objectStorageEndpoint" . }}
+  vmProberSpec:
+    path: /minio/v2/metrics/bucket
+    scheme: http
+    url: {{ include "objectstorage.objectStorageEndpoint" . }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: object-storage-probe
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: monitor
+data:
+  token: {{ .Values.objectstorageConfig.prometheusToken | quote }}
+type: Opaque
+{{- end }}

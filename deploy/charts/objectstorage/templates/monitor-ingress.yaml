@@ -1,0 +1,47 @@
+{{- if .Values.controller.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "objectstorage.monitorServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.controller.monitor.ingress.className | quote }}
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/client-body-buffer-size: 64k
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      if ($request_uri ~* \.(js|css|gif|jpe?g|png)) {
+        expires 30d;
+        add_header Cache-Control "public";
+      }
+    nginx.ingress.kubernetes.io/proxy-body-size: 1g
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 64k
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/server-snippet: |
+      client_header_buffer_size 64k;
+      large_client_header_buffers 4 128k;
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    {{- with .Values.controller.monitor.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.controller.monitor.ingress.className | quote }}
+  rules:
+    - host: {{ include "objectstorage.monitorHost" . | quote }}
+      http:
+        paths:
+          - path: /()(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "objectstorage.monitorServiceName" . }}
+                port:
+                  number: {{ .Values.controller.monitor.service.port }}
+  {{- $disableHttps := default .Values.objectstorageConfig.disableHttps .Values.disableHttps }}
+  {{- if not (eq (toString $disableHttps) "true") }}
+  tls:
+    - hosts:
+        - {{ include "objectstorage.monitorHost" . | quote }}
+      secretName: {{ default .Values.objectstorageConfig.certSecretName .Values.certSecretName | quote }}
+  {{- end }}
+{{- end }}

@@ -29,9 +29,10 @@ spec:
                 name: {{ include "objectstorage.fullname" . }}
                 port:
                   number: {{ .Values.frontend.service.port }}
-  {{- if not (eq (toString .Values.objectstorageConfig.disableHttps) "true") }}
+  {{- $disableHttps := default .Values.objectstorageConfig.disableHttps .Values.disableHttps }}
+  {{- if not (eq (toString $disableHttps) "true") }}
   tls:
     - hosts:
         - {{ include "objectstorage.host" . | quote }}
-      secretName: {{ .Values.objectstorageConfig.certSecretName | quote }}
+      secretName: {{ default .Values.objectstorageConfig.certSecretName .Values.certSecretName | quote }}
   {{- end }}

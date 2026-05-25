@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "objectstorage-frontend.fullname" . }}-config
+  name: {{ include "objectstorage.fullname" . }}-config
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "objectstorage-frontend.labels" . | nindent 4 }}
+    {{- include "objectstorage.labels" . | nindent 4 }}
 data:
   config.yaml: |-
     cloud:

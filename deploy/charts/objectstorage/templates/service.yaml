@@ -3,6 +3,7 @@ kind: Service
 metadata:
   labels:
     {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
   name: {{ include "objectstorage.fullname" . }}
   namespace: {{ .Release.Namespace }}
 spec:
@@ -14,3 +15,4 @@ spec:
       targetPort: {{ .Values.frontend.service.port }}
   selector:
     {{- include "objectstorage.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend

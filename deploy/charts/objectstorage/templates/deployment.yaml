@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "objectstorage.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   revisionHistoryLimit: 1
@@ -20,6 +21,7 @@ spec:
     metadata:
       labels:
         {{- include "objectstorage.labels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
       {{- with .Values.frontend.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}

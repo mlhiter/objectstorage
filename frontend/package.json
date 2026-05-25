@@ -25,8 +25,9 @@
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@kubernetes/client-node": "^0.19.0",
-    "@sealos/shared": "workspace:^",
-    "@sealos/ui": "workspace:^",
+    "@labring/sealos-desktop-sdk": "0.1.21",
+    "@labring/sealos-shared-sdk": "1.0.0",
+    "@labring/sealos-ui": "1.0.2",
     "@tanstack/react-query": "^4.35.3",
     "@tanstack/react-table": "^8.10.7",
     "axios": "^1.5.1",
@@ -51,7 +52,8 @@
     "react-hook-form": "^7.46.2",
     "react-i18next": "^14.1.2",
     "react-markdown": "^8.0.7",
-    "sealos-desktop-sdk": "workspace:^",
+    "react-syntax-highlighter": "^15.5.0",
+    "sonner": "^2.0.7",
     "typescript": "^5.2.2",
     "zod": "^4.3.6",
     "zustand": "^4.4.1"
@@ -72,5 +74,6 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.12",
     "@vitest/browser": "4.0.15"
-  }
+  },
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }

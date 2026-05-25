@@ -25,6 +25,13 @@ type TFileItem = {
   file: File;
   path: string;
 };
+
+const isDragEvent = (event: unknown): event is React.DragEvent =>
+  event instanceof Event && event.type === 'drop';
+
+const isInputChangeEvent = (event: unknown): event is React.ChangeEvent<HTMLInputElement> =>
+  event instanceof Event && event.type === 'change';
+
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { putObject } from '@/api/s3';
@@ -183,10 +190,10 @@ export default function UploadModal({ ...styles }: Omit<IconButtonProps, 'aria-l
     },
     async getFilesFromEvent(event) {
       const files: File[] = [];
-      if (event.type === 'drop') {
+      if (isDragEvent(event)) {
         const _files: TFileItem[] = [];
         const promises = [];
-        const dataTransfer = (event as React.DragEvent).dataTransfer;
+        const dataTransfer = event.dataTransfer;
         for (const item of dataTransfer.items) {
           const entry = item.webkitGetAsEntry();
           if (!entry) return [];
@@ -202,8 +209,8 @@ export default function UploadModal({ ...styles }: Omit<IconButtonProps, 'aria-l
           },
           () => []
         );
-      } else if (event.type === 'change') {
-        const fileList = (event as React.ChangeEvent<HTMLInputElement>).target.files || [];
+      } else if (isInputChangeEvent(event)) {
+        const fileList = event.target.files || [];
         for (const file of fileList) {
           // 支持文件夹
           const path = file.webkitRelativePath || file.name;

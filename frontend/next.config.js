@@ -2,6 +2,12 @@ const { sources } = require('next/dist/compiled/webpack/webpack');
 const path = require('path');
 const { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } = require('next/constants');
 const { i18n } = require('./next-i18next.config');
+const outputFileTracingRoot = __dirname;
+const transpilePackages = [
+  '@labring/sealos-ui',
+  '@labring/sealos-shared-sdk',
+  '@labring/sealos-desktop-sdk'
+];
 
 // module.exports = nextConfig;
 module.exports = (phase, { defaultConfig }) => {
@@ -15,7 +21,7 @@ module.exports = (phase, { defaultConfig }) => {
       i18n,
       experimental: {
         instrumentationHook: true,
-        outputFileTracingRoot: path.join(__dirname, '../../')
+        outputFileTracingRoot
       },
       webpack(config, { isServer }) {
         if (!isServer) {
@@ -72,7 +78,7 @@ module.exports = (phase, { defaultConfig }) => {
           }
         ];
       },
-      transpilePackages: ['@sealos/ui', 'sealos-desktop-sdk']
+      transpilePackages
     };
     return nextConfig;
   } else
@@ -80,9 +86,9 @@ module.exports = (phase, { defaultConfig }) => {
       i18n,
       experimental: {
         instrumentationHook: true,
-        outputFileTracingRoot: path.join(__dirname, '../../')
+        outputFileTracingRoot
       },
       output: 'standalone',
-      transpilePackages: ['@sealos/ui', 'sealos-desktop-sdk']
+      transpilePackages
     };
 };

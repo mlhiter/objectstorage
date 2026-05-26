@@ -14,5 +14,7 @@ spec:
       protocol: TCP
       targetPort: monitor
   selector:
+    app: {{ include "objectstorage.fullname" . }}
+    app.kubernetes.io/component: controller
     control-plane: controller-manager
     app.kubernetes.io/instance: {{ .Release.Name }}

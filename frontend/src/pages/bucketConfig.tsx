@@ -104,7 +104,7 @@ const EditApp = ({ bucketName, bucketPolicy }: bucketConfigQueryParam) => {
     )();
   };
 
-  const handleSubmit = useQuotaGuarded(
+  const handleCreateSubmit = useQuotaGuarded(
     {
       requirements: {
         traffic: true
@@ -114,6 +114,8 @@ const EditApp = ({ bucketName, bucketPolicy }: bucketConfigQueryParam) => {
     },
     submitForm
   );
+
+  const handleSubmit = bucketConfigMode === 'create' ? handleCreateSubmit : submitForm;
 
   return (
     <>

@@ -98,6 +98,7 @@ controller:
 
 objectstorageConfig:
   minio:
+    namespace: ""
     externalHost: ""
   monitor:
     externalHost: ""

@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildMinioQueryUsesObjectStorageInstance(t *testing.T) {
-	server := &Server{ObjectStorageHost: "object-storage.objectorstorage-system.svc.cluster.local:80"}
+	server := &Server{ObjectStorageHost: "object-storage.objectstorage-system.svc.cluster.local:80"}
 	request := &promRequest{
 		Type:   "minio",
 		Query:  "minio_bucket_traffic_sent_bytes",
@@ -22,7 +22,7 @@ func TestBuildMinioQueryUsesObjectStorageInstance(t *testing.T) {
 		t.Fatalf("buildQuery() error = %v", err)
 	}
 
-	expected := `sum(minio_bucket_traffic_sent_bytes{bucket="user-bucket", instance="object-storage.objectorstorage-system.svc.cluster.local:80"}) by (bucket, instance, job, namespace)`
+	expected := `sum(minio_bucket_traffic_sent_bytes{bucket="user-bucket", instance="object-storage.objectstorage-system.svc.cluster.local:80"}) by (bucket, instance, job, namespace)`
 	if query != expected {
 		t.Fatalf("buildQuery() = %q, want %q", query, expected)
 	}

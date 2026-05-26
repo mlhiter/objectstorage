@@ -18,7 +18,7 @@ objectStorage:
     appLaunchpad:
       url: http://applaunchpad-frontend.sealos.svc:3000
     objectStorage:
-      internalEndpoint: object-storage.objectorstorage-system.svc.cluster.local:80
+      internalEndpoint: object-storage.objectstorage-system.svc.cluster.local:80
       externalEndpoint: objectstorageapi.127.0.0.1.nip.io
 
   realName:

@@ -97,7 +97,7 @@ detect_object_storage_namespace() {
   local namespace
   local found_namespace=""
 
-  for namespace in "${OBJECT_STORAGE_NAMESPACE:-}" "${RELEASE_NAMESPACE:-}" "${BASE_OBJECT_STORAGE_NAMESPACE:-}" objectstorage-system minio-system; do
+  for namespace in "${OBJECT_STORAGE_NAMESPACE:-}" "${BASE_OBJECT_STORAGE_NAMESPACE:-}" objectstorage-system minio-system "${RELEASE_NAMESPACE:-}"; do
     if namespace_has_object_storage "$namespace"; then
       printf '%s' "$namespace"
       return 0
@@ -121,76 +121,21 @@ detect_object_storage_namespace() {
   error "failed to discover base object storage namespace; expected service ${OBJECT_STORAGE_SERVICE_NAME} and secret ${OBJECT_STORAGE_ADMIN_SECRET}"
 }
 
-sync_release_secret_from_base() {
-  local secret_name="$1"
-  shift
-  local key
-  local json_key
-  local value
-  local data_lines=""
-
-  for key in "$@"; do
-    json_key="${key//./\\.}"
-    value="$(kubectl get secret "$secret_name" -n "$BASE_OBJECT_STORAGE_NAMESPACE" -o "jsonpath={.data.${json_key}}" 2>/dev/null || true)"
-    if [ -z "$value" ]; then
-      warn "Skipping ${secret_name}: missing data key ${key} in namespace ${BASE_OBJECT_STORAGE_NAMESPACE}"
-      return 0
-    fi
-    data_lines="${data_lines}  \"${key}\": ${value}
-"
-  done
-
-  cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ${secret_name}
-  namespace: ${RELEASE_NAMESPACE}
-  labels:
-    app.kubernetes.io/name: objectstorage
-    app.kubernetes.io/instance: ${RELEASE_NAME}
-    app.kubernetes.io/component: minio-compat
-type: Opaque
-data:
-${data_lines}
-EOF
-}
-
-apply_object_storage_alias_service() {
-  cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Service
-metadata:
-  name: ${OBJECT_STORAGE_SERVICE_NAME}
-  namespace: ${RELEASE_NAMESPACE}
-  labels:
-    app.kubernetes.io/name: objectstorage
-    app.kubernetes.io/instance: ${RELEASE_NAME}
-    app.kubernetes.io/component: minio-compat
-spec:
-  type: ExternalName
-  externalName: ${OBJECT_STORAGE_SERVICE_NAME}.${BASE_OBJECT_STORAGE_NAMESPACE}.svc.cluster.local
-  ports:
-    - name: http-minio
-      protocol: TCP
-      port: 80
-      targetPort: 80
-EOF
-}
-
-prepare_release_object_storage_runtime() {
-  kubectl create namespace "$RELEASE_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
-
-  if [ "$BASE_OBJECT_STORAGE_NAMESPACE" = "$RELEASE_NAMESPACE" ]; then
-    info "Object storage runtime already exists in release namespace ${RELEASE_NAMESPACE}"
+cleanup_release_object_storage_projection() {
+  if [ "${CLEANUP_RELEASE_OBJECT_STORAGE_PROJECTION:-true}" != "true" ]; then
+    warn "Skipping release object storage projection cleanup because CLEANUP_RELEASE_OBJECT_STORAGE_PROJECTION=${CLEANUP_RELEASE_OBJECT_STORAGE_PROJECTION}"
     return 0
   fi
 
-  info "Projecting base object storage runtime from ${BASE_OBJECT_STORAGE_NAMESPACE} into release namespace ${RELEASE_NAMESPACE}"
-  sync_release_secret_from_base "$OBJECT_STORAGE_ADMIN_SECRET" CONSOLE_ACCESS_KEY CONSOLE_SECRET_KEY
-  sync_release_secret_from_base "$OBJECT_STORAGE_ENV_SECRET" config.env
-  sync_release_secret_from_base object-storage-user-kb CONSOLE_ACCESS_KEY CONSOLE_SECRET_KEY
-  apply_object_storage_alias_service
+  [ -n "$OBJECT_STORAGE_NAMESPACE" ] || return 0
+  if [ "$OBJECT_STORAGE_NAMESPACE" = "$RELEASE_NAMESPACE" ]; then
+    return 0
+  fi
+
+  info "Cleaning legacy projected object storage runtime from release namespace ${RELEASE_NAMESPACE}"
+  kubectl delete service,secret -n "$RELEASE_NAMESPACE" \
+    -l app.kubernetes.io/component=minio-compat \
+    --ignore-not-found >/dev/null 2>&1 || true
 }
 
 build_prometheus_token() {
@@ -343,8 +288,7 @@ else
   warn "apps/objectstorage values directory ${APP_VALUES_DIR} not found, proceeding without it"
 fi
 BASE_OBJECT_STORAGE_NAMESPACE="$(detect_object_storage_namespace)"
-prepare_release_object_storage_runtime
-OBJECT_STORAGE_NAMESPACE="$RELEASE_NAMESPACE"
+OBJECT_STORAGE_NAMESPACE="$BASE_OBJECT_STORAGE_NAMESPACE"
 
 CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(get_cm_value "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain 1 0)}}"
 [ -n "$CLOUD_DOMAIN" ] || error "missing required field: configmap ${SEALOS_SYSTEM_NS}/${SEALOS_CONFIG_CM} data.cloudDomain"
@@ -377,7 +321,7 @@ OBJECT_STORAGE_EXTERNAL_HOST="${OBJECT_STORAGE_EXTERNAL_HOST:-objectstorageapi.$
 
 info "Preparing release=${RELEASE_NAME}, namespace=${RELEASE_NAMESPACE}, chart=${CHART_PATH}"
 info "ObjectStorage frontend URL=${FRONTEND_URL}, disableHttps=${SEALOS_DISABLE_HTTPS}, tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}"
-info "Using release namespace=${RELEASE_NAMESPACE}; object storage runtime namespace=${OBJECT_STORAGE_NAMESPACE}; source object storage namespace=${BASE_OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
+info "Using release namespace=${RELEASE_NAMESPACE}; global object storage namespace=${OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
 [ -n "$CLOUD_DOMAIN" ] && HELM_COMMON_ARGS+=("--set-string" "cloudDomain=${CLOUD_DOMAIN}")
 [ -n "$SEALOS_CLOUD_PORT" ] && HELM_COMMON_ARGS+=("--set-string" "cloudPort=${SEALOS_CLOUD_PORT}")
@@ -389,10 +333,13 @@ info "Using release namespace=${RELEASE_NAMESPACE}; object storage runtime names
 [ -n "$PROMETHEUS_TOKEN" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.monitor.prometheusToken=${PROMETHEUS_TOKEN}")
 [ -n "$BILLING_URL" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingUrl=${BILLING_URL}")
 [ -n "$BILLING_SECRET" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingSecret=${BILLING_SECRET}")
+[ -n "$OBJECT_STORAGE_NAMESPACE" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.namespace=${OBJECT_STORAGE_NAMESPACE}")
 [ -n "$OBJECT_STORAGE_EXTERNAL_HOST" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.externalHost=${OBJECT_STORAGE_EXTERNAL_HOST}")
 HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
 
 adopt_existing_objectstorage_resources
+
+cleanup_release_object_storage_projection
 
 helm upgrade -i "${RELEASE_NAME}" "${CHART_PATH}" -n "${RELEASE_NAMESPACE}" --create-namespace \
   "${HELM_COMMON_ARGS[@]}" \

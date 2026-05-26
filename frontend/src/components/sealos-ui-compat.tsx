@@ -155,6 +155,7 @@ const MySelectInner = (
                   if (onchange && value !== item.value) {
                     onchange(item.value);
                   }
+                  onClose();
                 }}
               >
                 <Box>{item.label}</Box>

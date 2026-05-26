@@ -61,7 +61,7 @@ const BasicConfigHookForm = () => {
   ];
   const selectedAuthority = useWatch<FormSchema, 'bucketAuthority'>({
     name: 'bucketAuthority',
-    defaultValue: Authority.private,
+    defaultValue: getValues('bucketAuthority') || Authority.private,
     control
   });
   const router = useRouter();
@@ -81,7 +81,7 @@ const BasicConfigHookForm = () => {
             h="32px"
             w="100%"
             autoFocus={true}
-            isDisabled={!!router.query.bucketName}
+            isReadOnly={!!router.query.bucketName}
             {...register('bucketName', {
               validate: validateBucketName
             })}
@@ -96,9 +96,12 @@ const BasicConfigHookForm = () => {
           <MySelect
             list={authorityList}
             width="300px"
-            value={getValues('bucketAuthority')}
+            value={selectedAuthority}
             onchange={(v) => {
-              setValue('bucketAuthority', v as any);
+              setValue('bucketAuthority', v as any, {
+                shouldDirty: true,
+                shouldValidate: true
+              });
             }}
           ></MySelect>
         </Flex>

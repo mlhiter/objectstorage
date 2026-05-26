@@ -308,22 +308,18 @@ if [ "$RELEASE_NAMESPACE" != "$EXPECTED_RELEASE_NAMESPACE" ]; then
 fi
 
 cleanup_legacy_objectstorage_resources
+DEFAULT_VALUES_FILE="./charts/objectstorage/objectstorage-values.yaml"
+USER_VALUES_DIR="/root/.sealos/cloud/values/apps/objectstorage"
+USER_VALUES_FILE="${USER_VALUES_DIR}/objectstorage-values.yaml"
+mkdir -p "${USER_VALUES_DIR}"
 
-if [ -f "$PACKAGED_APP_VALUES_FILE" ]; then
-  info "Using apps/objectstorage default Helm values from ${PACKAGED_APP_VALUES_FILE}"
-  HELM_COMMON_ARGS+=("-f" "$PACKAGED_APP_VALUES_FILE")
-else
-  warn "apps/objectstorage default values file ${PACKAGED_APP_VALUES_FILE} not found, proceeding without it"
+if [ ! -f "${USER_VALUES_FILE}" ]; then
+  cp "${DEFAULT_VALUES_FILE}" "${USER_VALUES_FILE}"
+  info "Generated default user values at ${USER_VALUES_FILE}"
+  return 0
 fi
 
-if [ -d "$APP_VALUES_DIR" ]; then
-  while IFS= read -r values_file; do
-    info "Using apps/objectstorage Helm values from ${values_file}"
-    HELM_COMMON_ARGS+=("-f" "$values_file")
-  done < <(find "$APP_VALUES_DIR" -maxdepth 1 -type f \( -name '*-values.yaml' -o -name '*-values.yml' \) | sort)
-else
-  warn "apps/objectstorage values directory ${APP_VALUES_DIR} not found, proceeding without it"
-fi
+info "Using user values from ${USER_VALUES_FILE}"
 
 CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(get_cm_value "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain 1 0)}}"
 [ -n "$CLOUD_DOMAIN" ] || error "missing required field: configmap ${SEALOS_SYSTEM_NS}/${SEALOS_CONFIG_CM} data.cloudDomain"

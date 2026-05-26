@@ -103,10 +103,6 @@ detect_object_storage_namespace() {
   error "failed to discover base object storage namespace; expected service ${OBJECT_STORAGE_SERVICE_NAME} and secret ${OBJECT_STORAGE_ADMIN_SECRET}"
 }
 
-cleanup_release_object_storage_projection() {
-  helm delete -n objectstorage-system objectstorage --ignore-not-found >/dev/null 2>&1 || true
-}
-
 namespace_has_stateful_object_storage() {
   local namespace="$1"
 
@@ -366,7 +362,6 @@ HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNA
 
 adopt_existing_objectstorage_resources
 
-cleanup_release_object_storage_projection
 kubectl delete deployment objectstorage-controller-manager -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete deployment object-storage-monitor-deployment -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete configmap object-storage-monitor-config -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true

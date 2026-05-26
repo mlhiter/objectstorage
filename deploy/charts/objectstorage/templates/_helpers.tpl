@@ -77,7 +77,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.objectStorageNamespace" -}}
-{{- default .Release.Namespace .Values.objectstorageConfig.minio.namespace -}}
+{{- .Release.Namespace -}}
 {{- end }}
 
 {{- define "objectstorage.objectStorageAdminSecret" -}}

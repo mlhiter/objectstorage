@@ -65,9 +65,9 @@ spec:
         - name: manager
           env:
             - name: OSNamespace
-              value: "objectorstorage-system"
+              value: "objectstorage-system"
             - name: OSAdminNamespace
-              value: "objectorstorage-system"
+              value: "objectstorage-system"
             - name: OSAdminSecret
               value: '{{ .OSAdminSecret }}'
             - name: OSInternalEndpoint

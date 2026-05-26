@@ -205,7 +205,7 @@ adopt_existing_objectstorage_resources() {
   adopt_resource_for_helm app objectstorage app-system
 }
 
-wait_for_objectorstorage_rollout() {
+wait_for_objectstorage_rollout() {
   local timeout="${ROLLOUT_TIMEOUT:-5m}"
 
   kubectl rollout status deployment/objectstorage-controller-manager -n "$RELEASE_NAMESPACE" --timeout="$timeout"
@@ -218,25 +218,14 @@ cleanup_legacy_objectstorage_resources() {
     return 0
   fi
 
-  if [ "$RELEASE_NAMESPACE" = "objectstorage-system" ] || [ "$RELEASE_NAMESPACE" = "objectstorage-frontend" ]; then
-    warn "Skipping legacy cleanup because release namespace is ${RELEASE_NAMESPACE}"
-    return 0
-  fi
-
   info "Cleaning legacy objectstorage frontend/controller resources while preserving base object storage tenant"
   kubectl delete namespace objectstorage-frontend --ignore-not-found >/dev/null 2>&1 || true
-
-  if kubectl get namespace objectstorage-system >/dev/null 2>&1; then
-    kubectl delete deployment objectstorage-controller-manager object-storage-monitor-deployment -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete svc object-storage-monitor objectstorage-controller-manager-metrics-service -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete ingress object-storage-monitor -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete configmap object-storage-monitor-config -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete secret object-storage-probe -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete vmprobe object-storage-cluster object-storage-bucket -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete serviceaccount objectstorage-controller-manager -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete role objectstorage-leader-election-role -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-    kubectl delete rolebinding objectstorage-leader-election-rolebinding -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
+  if [ "$RELEASE_NAMESPACE" != "objectorstorage-system" ]; then
+    kubectl delete namespace objectorstorage-system --ignore-not-found >/dev/null 2>&1 || true
   fi
+  kubectl delete deployment object-storage-monitor-deployment -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete svc objectstorage-controller-manager-metrics-service -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete configmap object-storage-monitor-config -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 
   kubectl delete clusterrole objectstorage-metrics-reader objectstorage-proxy-role --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete clusterrolebinding objectstorage-proxy-rolebinding --ignore-not-found >/dev/null 2>&1 || true
@@ -245,7 +234,7 @@ cleanup_legacy_objectstorage_resources() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RELEASE_NAME=${RELEASE_NAME:-"objectorstorage"}
-RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-${NAMESPACE:-"objectorstorage-system"}}
+RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-${NAMESPACE:-"objectstorage-system"}}
 BASE_OBJECT_STORAGE_NAMESPACE=${BASE_OBJECT_STORAGE_NAMESPACE:-${OBJECT_STORAGE_NAMESPACE:-}}
 OBJECT_STORAGE_NAMESPACE=${OBJECT_STORAGE_NAMESPACE:-}
 OBJECT_STORAGE_SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-"object-storage"}
@@ -345,5 +334,5 @@ helm upgrade -i "${RELEASE_NAME}" "${CHART_PATH}" -n "${RELEASE_NAMESPACE}" --cr
   "${HELM_COMMON_ARGS[@]}" \
   ${HELM_OPTS}
 
-wait_for_objectorstorage_rollout
+wait_for_objectstorage_rollout
 cleanup_legacy_objectstorage_resources

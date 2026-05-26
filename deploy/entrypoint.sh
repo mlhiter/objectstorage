@@ -1,228 +1,75 @@
 #!/usr/bin/env bash
 set -e
 
-timestamp() {
-  date +"%Y-%m-%d %T"
-}
-
-log() {
-  local level="$1"
-  local color="$2"
-  shift 2
-  echo -e "\033[${color}m ${level} [$(timestamp)] >> $* \033[0m" >&2
-}
-
-info() {
-  log "INFO" "36" "$@"
-}
-
-warn() {
-  log "WARN" "33" "$@"
-}
-
-error() {
-  log "ERROR" "1;31" "$@"
-}
-
-die() {
-  error "$@"
-  exit 1
-}
-
-require_cmd() {
-  local cmd="$1"
-  command -v "$cmd" >/dev/null 2>&1 || die "missing required command: ${cmd}"
-}
-
-is_true() {
-  local value
-  value="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
-  case "$value" in
-    1|true|yes|y|on) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-load_http_tools() {
+load_cloud_tools_or_exit() {
   local tools_file="/root/.sealos/cloud/scripts/tools.sh"
-  [ -f "$tools_file" ] || die "tools.sh not found in /root/.sealos/cloud/scripts"
+  local required_functions=(
+    ensure_global_values_ready_for_component
+    read_yaml_file_path
+    global_http_disable_https
+    global_http_external_url
+    get_cm_value
+    read_cert_tls_reject_unauthorized
+    read_jwt_internal
+    read_prometheus_url
+    read_account_service_name
+    info
+    warn
+    error
+  )
+  local missing_functions=()
+  local function_name
+
+  if [ ! -f "$tools_file" ]; then
+    cat >&2 <<'EOF'
+错误：未找到 /root/.sealos/cloud/scripts/tools.sh，当前组件镜像无法继续执行。
+
+请先回到当前安装包目录，执行对应命令同步 values + tools：
+  Pro 安装包：./sealos-pro.sh sync-config
+  OSS 安装包：./sealos-oss.sh sync-config
+EOF
+    exit 1
+  fi
+
   # shellcheck source=/dev/null
   source "$tools_file"
-}
 
-ensure_http_tool_fallbacks() {
-  if ! declare -f bool_is_true >/dev/null 2>&1; then
-    bool_is_true() {
-      is_true "$1"
-    }
-  fi
-
-  if ! declare -f read_yaml_file_path >/dev/null 2>&1; then
-    read_yaml_file_path() {
-      local path_expr="$1"
-      local yaml_file="${GLOBAL_VALUES_FILE:-/root/.sealos/cloud/values/global.yaml}"
-      local yq_bin="${YQ_BIN:-/root/.sealos/cloud/bin/yq}"
-
-      [ -f "$yaml_file" ] || return 0
-      if [ -x "$yq_bin" ]; then
-        "$yq_bin" e -r "${path_expr} // \"\"" "$yaml_file" 2>/dev/null || true
-        return 0
-      fi
-      if command -v yq >/dev/null 2>&1; then
-        yq e -r "${path_expr} // \"\"" "$yaml_file" 2>/dev/null || true
-        return 0
-      fi
-      return 0
-    }
-  fi
-
-  if ! declare -f global_http_disable_https >/dev/null 2>&1; then
-    global_http_disable_https() {
-      local disable_https="${SEALOS_DISABLE_HTTPS:-}"
-      if [ -z "$disable_https" ]; then
-        disable_https="$(read_yaml_file_path '.global.http.disableHttps')"
-      fi
-      bool_is_true "${disable_https:-false}"
-    }
-  fi
-
-  if ! declare -f global_http_external_url >/dev/null 2>&1; then
-    global_http_external_url() {
-      local host="$1"
-      local path="${2:-}"
-      local scheme="https"
-      local port="${SEALOS_CLOUD_PORT:-}"
-
-      if global_http_disable_https; then
-        scheme="http"
-        port="${SEALOS_HTTP_PORT:-}"
-        [ -n "$port" ] || port="$(read_yaml_file_path '.global.http.httpPort')"
-        [ -n "$port" ] || port="80"
-      else
-        [ -n "$port" ] || port="$(read_yaml_file_path '.global.http.httpsPort')"
-        [ -n "$port" ] || port="443"
-      fi
-
-      if { [ "$scheme" = "http" ] && [ "$port" = "80" ]; } || { [ "$scheme" = "https" ] && [ "$port" = "443" ]; }; then
-        printf '%s://%s%s' "$scheme" "$host" "$path"
-      else
-        printf '%s://%s:%s%s' "$scheme" "$host" "$port" "$path"
-      fi
-    }
-  fi
-}
-
-required_resource_data() {
-  local kind="$1"
-  local namespace="$2"
-  local name="$3"
-  local key="$4"
-  local decode="${5:-false}"
-  local value
-
-  value="$(kubectl get "$kind" "$name" -n "$namespace" -o "jsonpath={.data.${key}}" 2>/dev/null || true)"
-  [ -n "$value" ] || die "missing required field: ${kind} ${namespace}/${name} data.${key}"
-
-  if [ "$decode" = "true" ]; then
-    printf '%s' "$value" | base64 --decode
-    return
-  fi
-
-  printf '%s' "$value"
-}
-
-optional_resource_data() {
-  local kind="$1"
-  local namespace="$2"
-  local name="$3"
-  local key="$4"
-  local decode="${5:-false}"
-  local value
-
-  value="$(kubectl get "$kind" "$name" -n "$namespace" -o "jsonpath={.data.${key}}" 2>/dev/null || true)"
-  [ -n "$value" ] || return 0
-
-  if [ "$decode" = "true" ]; then
-    printf '%s' "$value" | base64 --decode
-    return
-  fi
-
-  printf '%s' "$value"
-}
-
-append_set_string_if_present() {
-  local value="$1"
-  local key="$2"
-  if [ -n "$value" ]; then
-    HELM_COMMON_ARGS+=("--set-string" "${key}=${value}")
-  fi
-}
-
-append_values_file_arg() {
-  local file="$1"
-  local label="$2"
-  if [ -f "$file" ]; then
-    info "Using ${label} Helm values from ${file}"
-    HELM_COMMON_ARGS+=("-f" "$file")
-  else
-    warn "${label} values file ${file} not found, proceeding without it"
-  fi
-}
-
-append_values_dir_args() {
-  local values_dir="$1"
-  local label="$2"
-  local found="false"
-
-  if [ ! -d "$values_dir" ]; then
-    warn "${label} values directory ${values_dir} not found, proceeding without it"
-    return 0
-  fi
-
-  for values_file in $(find "$values_dir" -maxdepth 1 -type f \( -name '*-values.yaml' -o -name '*-values.yml' \) | sort); do
-    found="true"
-    append_values_file_arg "$values_file" "$label"
+  for function_name in "${required_functions[@]}"; do
+    if ! declare -f "$function_name" >/dev/null 2>&1; then
+      missing_functions+=("$function_name")
+    fi
   done
 
-  if [ "$found" != "true" ]; then
-    warn "${label} values directory ${values_dir} has no *-values.yaml files"
+  if [ "${#missing_functions[@]}" -gt 0 ]; then
+    cat >&2 <<EOF
+错误：/root/.sealos/cloud/scripts/tools.sh 版本过旧，缺少配置检测函数，当前组件镜像无法继续执行。
+
+缺少函数：${missing_functions[*]}
+
+请先回到当前安装包目录，执行对应命令同步 values + tools：
+  Pro 安装包：./sealos-pro.sh sync-config
+  OSS 安装包：./sealos-oss.sh sync-config
+EOF
+    exit 1
   fi
-}
 
-read_cert_tls_reject_unauthorized() {
-  local cert_mode
-
-  cert_mode="$(kubectl get configmap cert-config -n sealos-system -o jsonpath='{.data.CERT_MODE}' 2>/dev/null || true)"
-  cert_mode="${CERT_MODE:-${cert_mode:-self-signed}}"
-  cert_mode="$(printf '%s' "${cert_mode}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-
-  case "$cert_mode" in
-    https|acme|acmedns) printf '0' ;;
-    *) printf '1' ;;
-  esac
+  ensure_global_values_ready_for_component
 }
 
 read_billing_config() {
   local account_namespace="account-system"
   local account_configmap="account-manager-env"
-  local account_instance="account-controller"
   local account_svc_port=""
 
   BILLING_SECRET="${BILLING_SECRET:-${billingSecret:-}}"
   if [ -z "$BILLING_SECRET" ]; then
-    if declare -f get_cm_value >/dev/null 2>&1; then
-      BILLING_SECRET="$(get_cm_value "$account_namespace" "$account_configmap" ACCOUNT_API_JWT_SECRET 1 0)"
-    else
-      BILLING_SECRET="$(kubectl get configmap "$account_configmap" -n "$account_namespace" -o jsonpath='{.data.ACCOUNT_API_JWT_SECRET}' 2>/dev/null || true)"
-    fi
+    BILLING_SECRET="$(get_cm_value "$account_namespace" "$account_configmap" ACCOUNT_API_JWT_SECRET 1 0)"
   fi
 
   BILLING_URL="${BILLING_URL:-${billingUrl:-}}"
   if [ -z "$BILLING_URL" ]; then
-    ACCOUNT_SVC_NAME="${ACCOUNT_SVC_NAME:-$(kubectl get svc -n "$account_namespace" \
-      -l "app.kubernetes.io/instance=${account_instance}" \
-      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)}"
-    if [ -n "$ACCOUNT_SVC_NAME" ]; then
+    ACCOUNT_SVC_NAME="${ACCOUNT_SVC_NAME:-$(read_account_service_name)}"
+    if [ -n "$ACCOUNT_SVC_NAME" ] && kubectl get svc "$ACCOUNT_SVC_NAME" -n "$account_namespace" >/dev/null 2>&1; then
       account_svc_port="$(kubectl get svc "$ACCOUNT_SVC_NAME" -n "$account_namespace" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)"
       account_svc_port="${account_svc_port:-2333}"
       BILLING_URL="http://${ACCOUNT_SVC_NAME}.${account_namespace}.svc:${account_svc_port}"
@@ -233,7 +80,7 @@ read_billing_config() {
     warn "Billing secret not found from ${account_namespace}/${account_configmap}.ACCOUNT_API_JWT_SECRET"
   fi
   if [ -z "$BILLING_URL" ]; then
-    warn "Billing service not found by selector app.kubernetes.io/instance=${account_instance} in namespace ${account_namespace}"
+    warn "Billing service not found by selector app.kubernetes.io/instance=account-controller in namespace ${account_namespace}"
   fi
 }
 
@@ -270,7 +117,7 @@ detect_object_storage_namespace() {
     return 0
   fi
 
-  die "failed to discover base object storage namespace; expected service ${OBJECT_STORAGE_SERVICE_NAME} and secret ${OBJECT_STORAGE_ADMIN_SECRET}"
+  error "failed to discover base object storage namespace; expected service ${OBJECT_STORAGE_SERVICE_NAME} and secret ${OBJECT_STORAGE_ADMIN_SECRET}"
 }
 
 build_prometheus_token() {
@@ -286,14 +133,16 @@ build_prometheus_token() {
   local base64_signature
   local token
 
-  minio_config_env="$(required_resource_data secret "$config_namespace" object-storage-env-configuration 'config\.env' true)"
+  minio_config_env="$(kubectl get secret object-storage-env-configuration -n "$config_namespace" -o jsonpath='{.data.config\.env}' 2>/dev/null || true)"
+  [ -n "$minio_config_env" ] || error "missing required field: secret ${config_namespace}/object-storage-env-configuration data.config.env"
+  minio_config_env="$(printf '%s' "$minio_config_env" | base64 --decode)"
   minio_root_user="$(echo "${minio_config_env}" | tr ' ' '\n' | grep '^MINIO_ROOT_USER=' | cut -d '=' -f 2)"
   minio_root_user=${minio_root_user//\"}
   minio_root_password="$(echo "${minio_config_env}" | tr ' ' '\n' | grep '^MINIO_ROOT_PASSWORD=' | cut -d '=' -f 2)"
   minio_root_password=${minio_root_password//\"}
 
-  [ -n "$minio_root_user" ] || die "MINIO_ROOT_USER not found in ${config_namespace}/object-storage-env-configuration"
-  [ -n "$minio_root_password" ] || die "MINIO_ROOT_PASSWORD not found in ${config_namespace}/object-storage-env-configuration"
+  [ -n "$minio_root_user" ] || error "MINIO_ROOT_USER not found in ${config_namespace}/object-storage-env-configuration"
+  [ -n "$minio_root_password" ] || error "MINIO_ROOT_PASSWORD not found in ${config_namespace}/object-storage-env-configuration"
 
   symmetric_key=${minio_root_password}
   header='{"alg":"HS256","typ":"JWT"}'
@@ -382,32 +231,51 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_NAME=${RELEASE_NAME:-"objectorstorage"}
 RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-${NAMESPACE:-"objectorstorage-system"}}
 OBJECT_STORAGE_NAMESPACE=${OBJECT_STORAGE_NAMESPACE:-}
+OBJECT_STORAGE_SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-"object-storage"}
+OBJECT_STORAGE_ADMIN_SECRET=${OBJECT_STORAGE_ADMIN_SECRET:-"object-storage-user-0"}
 CHART_PATH=${CHART_PATH:-"${SCRIPT_DIR}/charts/objectstorage"}
 HELM_OPTS=${HELM_OPTS:-""}
 SEALOS_SYSTEM_NS=${SEALOS_SYSTEM_NS:-"sealos-system"}
 SEALOS_CONFIG_CM=${SEALOS_CONFIG_CM:-"sealos-config"}
-GLOBAL_VALUES_FILE=${GLOBAL_VALUES_FILE:-"/root/.sealos/cloud/values/global.yaml"}
+SEALOS_GLOBAL_VALUES_FILE=${SEALOS_GLOBAL_VALUES_FILE:-"/root/.sealos/cloud/values/global.yaml"}
 PACKAGED_APP_VALUES_FILE=${PACKAGED_APP_VALUES_FILE:-${CHART_APP_VALUES_FILE:-"${CHART_PATH}/objectstorage-values.yaml"}}
 APP_VALUES_DIR=${APP_VALUES_DIR:-"/root/.sealos/cloud/values/apps/objectstorage"}
 
-[ -d "$CHART_PATH" ] || die "chart directory not found: ${CHART_PATH}"
-
-for cmd in helm kubectl base64 openssl; do
-  require_cmd "$cmd"
-done
+[ -d "$CHART_PATH" ] || {
+  echo "chart directory not found: ${CHART_PATH}" >&2
+  exit 1
+}
 
 HELM_COMMON_ARGS=()
 
-load_http_tools
-ensure_http_tool_fallbacks
+load_cloud_tools_or_exit
 
-append_values_file_arg "$PACKAGED_APP_VALUES_FILE" "apps/objectstorage default"
-append_values_dir_args "$APP_VALUES_DIR" "apps/objectstorage"
+for cmd in helm kubectl base64 openssl; do
+  command -v "$cmd" >/dev/null 2>&1 || error "missing required command: ${cmd}"
+done
+
+if [ -f "$PACKAGED_APP_VALUES_FILE" ]; then
+  info "Using apps/objectstorage default Helm values from ${PACKAGED_APP_VALUES_FILE}"
+  HELM_COMMON_ARGS+=("-f" "$PACKAGED_APP_VALUES_FILE")
+else
+  warn "apps/objectstorage default values file ${PACKAGED_APP_VALUES_FILE} not found, proceeding without it"
+fi
+
+if [ -d "$APP_VALUES_DIR" ]; then
+  while IFS= read -r values_file; do
+    info "Using apps/objectstorage Helm values from ${values_file}"
+    HELM_COMMON_ARGS+=("-f" "$values_file")
+  done < <(find "$APP_VALUES_DIR" -maxdepth 1 -type f \( -name '*-values.yaml' -o -name '*-values.yml' \) | sort)
+else
+  warn "apps/objectstorage values directory ${APP_VALUES_DIR} not found, proceeding without it"
+fi
 OBJECT_STORAGE_NAMESPACE="$(detect_object_storage_namespace)"
 
-CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(required_resource_data configmap "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain)}}"
-SEALOS_JWT_INTERNAL="${SEALOS_JWT_INTERNAL:-${jwtInternal:-$(required_resource_data configmap "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" jwtInternal)}}"
+CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(get_cm_value "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain 1 0)}}"
+[ -n "$CLOUD_DOMAIN" ] || error "missing required field: configmap ${SEALOS_SYSTEM_NS}/${SEALOS_CONFIG_CM} data.cloudDomain"
+SEALOS_JWT_INTERNAL="${SEALOS_JWT_INTERNAL:-${jwtInternal:-$(read_jwt_internal)}}"
 read_billing_config
+PROMETHEUS_URL="${PROMETHEUS_URL:-$(read_prometheus_url)}"
 PROMETHEUS_TOKEN="${PROMETHEUS_TOKEN:-}"
 if [ -z "$PROMETHEUS_TOKEN" ]; then
   PROMETHEUS_TOKEN="$(build_prometheus_token "$OBJECT_STORAGE_NAMESPACE")"
@@ -424,6 +292,8 @@ else
   SEALOS_DISABLE_HTTPS="false"
 fi
 
+# read_cert_tls_reject_unauthorized reads sealos-system/cert-config CERT_MODE:
+# https|acme|acmedns -> printf '0', other modes -> printf '1'.
 TLS_REJECT_UNAUTHORIZED="$(read_cert_tls_reject_unauthorized)"
 FRONTEND_HOST="${FRONTEND_HOST:-objectstorage.${CLOUD_DOMAIN}}"
 FRONTEND_URL="$(global_http_external_url "${FRONTEND_HOST}")"
@@ -434,17 +304,18 @@ info "Preparing release=${RELEASE_NAME}, namespace=${RELEASE_NAMESPACE}, chart=$
 info "ObjectStorage frontend URL=${FRONTEND_URL}, disableHttps=${SEALOS_DISABLE_HTTPS}, tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}"
 info "Using base object storage namespace=${OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
-append_set_string_if_present "$CLOUD_DOMAIN" "cloudDomain"
-append_set_string_if_present "$SEALOS_CLOUD_PORT" "cloudPort"
-append_set_string_if_present "$SEALOS_HTTP_PORT" "httpPort"
-append_set_string_if_present "$SEALOS_DISABLE_HTTPS" "disableHttps"
-append_set_string_if_present "$SEALOS_CERT_SECRET_NAME" "certSecretName"
-append_set_string_if_present "$SEALOS_JWT_INTERNAL" "objectstorageConfig.appTokenJwtKey"
-append_set_string_if_present "$PROMETHEUS_TOKEN" "objectstorageConfig.monitor.prometheusToken"
-append_set_string_if_present "$BILLING_URL" "objectstorageConfig.billingUrl"
-append_set_string_if_present "$BILLING_SECRET" "objectstorageConfig.billingSecret"
-append_set_string_if_present "$OBJECT_STORAGE_NAMESPACE" "objectstorageConfig.minio.namespace"
-append_set_string_if_present "$OBJECT_STORAGE_EXTERNAL_HOST" "objectstorageConfig.minio.externalHost"
+[ -n "$CLOUD_DOMAIN" ] && HELM_COMMON_ARGS+=("--set-string" "cloudDomain=${CLOUD_DOMAIN}")
+[ -n "$SEALOS_CLOUD_PORT" ] && HELM_COMMON_ARGS+=("--set-string" "cloudPort=${SEALOS_CLOUD_PORT}")
+[ -n "$SEALOS_HTTP_PORT" ] && HELM_COMMON_ARGS+=("--set-string" "httpPort=${SEALOS_HTTP_PORT}")
+[ -n "$SEALOS_DISABLE_HTTPS" ] && HELM_COMMON_ARGS+=("--set-string" "disableHttps=${SEALOS_DISABLE_HTTPS}")
+[ -n "$SEALOS_CERT_SECRET_NAME" ] && HELM_COMMON_ARGS+=("--set-string" "certSecretName=${SEALOS_CERT_SECRET_NAME}")
+[ -n "$SEALOS_JWT_INTERNAL" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.appTokenJwtKey=${SEALOS_JWT_INTERNAL}")
+[ -n "$PROMETHEUS_URL" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.monitor.prometheusUrl=${PROMETHEUS_URL}")
+[ -n "$PROMETHEUS_TOKEN" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.monitor.prometheusToken=${PROMETHEUS_TOKEN}")
+[ -n "$BILLING_URL" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingUrl=${BILLING_URL}")
+[ -n "$BILLING_SECRET" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingSecret=${BILLING_SECRET}")
+[ -n "$OBJECT_STORAGE_NAMESPACE" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.namespace=${OBJECT_STORAGE_NAMESPACE}")
+[ -n "$OBJECT_STORAGE_EXTERNAL_HOST" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.externalHost=${OBJECT_STORAGE_EXTERNAL_HOST}")
 HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
 
 adopt_existing_objectstorage_resources

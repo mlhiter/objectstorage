@@ -63,19 +63,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if $port -}}:{{ $port }}{{- end -}}
 {{- end }}
 
-{{- define "objectstorage.portEnv" -}}
-{{- $port := include "objectstorage.port" . -}}
-{{- if $port -}}:{{ $port }}{{- end -}}
-{{- end }}
-
-{{- define "objectstorage.cloudOrigin" -}}
-{{- include "objectstorage.scheme" . -}}://{{ .Values.cloudDomain }}{{ include "objectstorage.portSuffix" . }}
-{{- end }}
-
-{{- define "objectstorage.wildcardCloudOrigin" -}}
-{{- include "objectstorage.scheme" . -}}://*.{{ .Values.cloudDomain }}{{ include "objectstorage.portSuffix" . }}
-{{- end }}
-
 {{- define "objectstorage.host" -}}
 {{- $cloudDomain := .Values.cloudDomain -}}
 {{- default (printf "objectstorage.%s" $cloudDomain) .Values.frontend.ingress.host -}}
@@ -87,10 +74,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "objectstorage.apiHost" -}}
 {{- default (printf "objectstorageapi.%s" .Values.cloudDomain) .Values.objectstorageConfig.minio.externalHost -}}
-{{- end }}
-
-{{- define "objectstorage.apiOrigin" -}}
-{{- include "objectstorage.scheme" . -}}://{{ include "objectstorage.apiHost" . }}{{ include "objectstorage.portSuffix" . }}
 {{- end }}
 
 {{- define "objectstorage.objectStorageNamespace" -}}
@@ -106,7 +89,7 @@ object-storage-user-0
 {{- end }}
 
 {{- define "objectstorage.monitorServiceName" -}}
-{{- default "object-storage-monitor" .Values.controller.monitor.serviceName -}}
+object-storage-monitor
 {{- end }}
 
 {{- define "objectstorage.monitorHost" -}}
@@ -115,5 +98,5 @@ object-storage-user-0
 {{- end }}
 
 {{- define "objectstorage.monitorUrl" -}}
-{{- printf "http://%s.%s.svc.cluster.local:%v/q" (include "objectstorage.monitorServiceName" .) .Release.Namespace .Values.controller.monitor.service.port -}}
+{{- printf "http://%s.%s.svc.cluster.local:%v/q" (include "objectstorage.monitorServiceName" .) .Release.Namespace .Values.controller.monitor.port -}}
 {{- end }}

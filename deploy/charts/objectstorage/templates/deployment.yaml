@@ -22,8 +22,9 @@ spec:
       labels:
         {{- include "objectstorage.labels" . | nindent 8 }}
         app.kubernetes.io/component: frontend
-      {{- with .Values.frontend.podAnnotations }}
       annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      {{- with .Values.frontend.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:

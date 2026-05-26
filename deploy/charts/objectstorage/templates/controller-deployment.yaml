@@ -17,6 +17,7 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         {{- include "objectstorage.labels" . | nindent 8 }}
         app.kubernetes.io/component: controller
@@ -39,21 +40,45 @@ spec:
             - --leader-elect
           env:
             - name: OSNamespace
-              value: {{ include "objectstorage.objectStorageNamespace" . | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSNamespace
             - name: OSAdminSecret
-              value: {{ include "objectstorage.objectStorageAdminSecret" . | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSAdminSecret
             - name: OSInternalEndpoint
-              value: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSInternalEndpoint
             - name: OSExternalEndpoint
-              value: {{ include "objectstorage.apiHost" . | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSExternalEndpoint
             - name: OSUDetectionCycleSeconds
-              value: {{ .Values.objectstorageConfig.controller.userDetectionCycleSeconds | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSUDetectionCycleSeconds
             - name: OSBDetectionCycleSeconds
-              value: {{ .Values.objectstorageConfig.controller.bucketDetectionCycleSeconds | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSBDetectionCycleSeconds
             - name: OBJECT_STORAGE_INSTANCE
-              value: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OBJECT_STORAGE_INSTANCE
             - name: PROMETHEUS_SERVICE_HOST
-              value: {{ .Values.objectstorageConfig.monitor.prometheusUrl | quote }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: PROMETHEUS_SERVICE_HOST
           ports:
             - name: monitor
               containerPort: {{ .Values.controller.monitor.port }}

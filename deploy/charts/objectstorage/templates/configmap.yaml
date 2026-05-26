@@ -6,6 +6,14 @@ metadata:
   labels:
     {{- include "objectstorage.labels" . | nindent 4 }}
 data:
+  OSNamespace: {{ include "objectstorage.objectStorageNamespace" . | quote }}
+  OSAdminSecret: {{ include "objectstorage.objectStorageAdminSecret" . | quote }}
+  OSInternalEndpoint: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
+  OSExternalEndpoint: {{ include "objectstorage.apiHost" . | quote }}
+  OSUDetectionCycleSeconds: {{ .Values.objectstorageConfig.controller.userDetectionCycleSeconds | quote }}
+  OSBDetectionCycleSeconds: {{ .Values.objectstorageConfig.controller.bucketDetectionCycleSeconds | quote }}
+  OBJECT_STORAGE_INSTANCE: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
+  PROMETHEUS_SERVICE_HOST: {{ .Values.objectstorageConfig.monitor.prometheusUrl | quote }}
   config.yaml: |-
     cloud:
       domain: {{ .Values.cloudDomain | quote }}

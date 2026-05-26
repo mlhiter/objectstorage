@@ -35,7 +35,7 @@ spec:
               service:
                 name: {{ include "objectstorage.monitorServiceName" . }}
                 port:
-                  number: {{ .Values.controller.monitor.service.port }}
+                  number: {{ .Values.controller.monitor.port }}
   {{- $disableHttps := .Values.disableHttps }}
   {{- if not (eq (toString $disableHttps) "true") }}
   tls:

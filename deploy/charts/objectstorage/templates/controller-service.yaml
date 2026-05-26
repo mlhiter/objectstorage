@@ -7,10 +7,10 @@ metadata:
     {{- include "objectstorage.labels" . | nindent 4 }}
     app.kubernetes.io/component: monitor
 spec:
-  type: {{ .Values.controller.monitor.service.type }}
+  type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.controller.monitor.service.port }}
+      port: {{ .Values.controller.monitor.port }}
       protocol: TCP
       targetPort: monitor
   selector:

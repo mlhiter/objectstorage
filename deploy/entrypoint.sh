@@ -303,10 +303,6 @@ for cmd in helm kubectl base64 openssl; do
   command -v "$cmd" >/dev/null 2>&1 || error "missing required command: ${cmd}"
 done
 
-if [ "$RELEASE_NAMESPACE" != "$EXPECTED_RELEASE_NAMESPACE" ]; then
-  error "unsupported RELEASE_NAMESPACE=${RELEASE_NAMESPACE}; objectstorage release must deploy into ${EXPECTED_RELEASE_NAMESPACE}"
-fi
-
 cleanup_legacy_objectstorage_resources
 DEFAULT_VALUES_FILE="./charts/objectstorage/objectstorage-values.yaml"
 USER_VALUES_DIR="/root/.sealos/cloud/values/apps/objectstorage"

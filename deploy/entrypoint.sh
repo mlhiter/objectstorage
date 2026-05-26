@@ -202,6 +202,15 @@ adopt_existing_objectstorage_resources() {
   adopt_resource_for_helm crd objectstorageusers.objectstorage.sealos.io
   adopt_resource_for_helm clusterrole objectstorage-manager-role
   adopt_resource_for_helm clusterrolebinding objectstorage-manager-rolebinding
+  adopt_resource_for_helm serviceaccount objectstorage-controller-manager "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm role objectstorage-leader-election-role "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm rolebinding objectstorage-leader-election-rolebinding "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm service objectstorage-controller-manager-metrics-service "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm service object-storage-monitor "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm ingress object-storage-monitor "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm vmprobe object-storage-cluster "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm vmprobe object-storage-bucket "$RELEASE_NAMESPACE"
+  adopt_resource_for_helm secret object-storage-probe "$RELEASE_NAMESPACE"
   adopt_resource_for_helm app objectstorage app-system
 }
 
@@ -224,7 +233,6 @@ cleanup_legacy_objectstorage_resources() {
     kubectl delete namespace objectorstorage-system --ignore-not-found >/dev/null 2>&1 || true
   fi
   kubectl delete deployment object-storage-monitor-deployment -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
-  kubectl delete svc objectstorage-controller-manager-metrics-service -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete configmap object-storage-monitor-config -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 
   kubectl delete clusterrole objectstorage-metrics-reader objectstorage-proxy-role --ignore-not-found >/dev/null 2>&1 || true
@@ -329,6 +337,9 @@ HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNA
 adopt_existing_objectstorage_resources
 
 cleanup_release_object_storage_projection
+kubectl delete deployment objectstorage-controller-manager -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete deployment object-storage-monitor-deployment -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete configmap object-storage-monitor-config -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 
 helm upgrade -i "${RELEASE_NAME}" "${CHART_PATH}" -n "${RELEASE_NAMESPACE}" --create-namespace \
   "${HELM_COMMON_ARGS[@]}" \

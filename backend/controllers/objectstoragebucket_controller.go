@@ -407,7 +407,7 @@ func (r *ObjectStorageBucketReconciler) SetupWithManager(mgr ctrl.Manager) error
 	externalEndpoint := env.GetEnvWithDefault(OSExternalEndpointEnv, "")
 	r.ExternalEndpoint = externalEndpoint
 
-	oSNamespace := env.GetEnvWithDefault(OSNamespace, "")
+	oSNamespace := getObjectStorageAdminNamespace()
 	r.OSNamespace = oSNamespace
 
 	oSAdminSecret := env.GetEnvWithDefault(OSAdminSecret, "")

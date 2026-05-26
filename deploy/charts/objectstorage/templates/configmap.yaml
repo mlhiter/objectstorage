@@ -6,7 +6,8 @@ metadata:
   labels:
     {{- include "objectstorage.labels" . | nindent 4 }}
 data:
-  OSNamespace: {{ include "objectstorage.objectStorageNamespace" . | quote }}
+  OSNamespace: {{ .Release.Namespace | quote }}
+  OSAdminNamespace: {{ include "objectstorage.objectStorageNamespace" . | quote }}
   OSAdminSecret: {{ include "objectstorage.objectStorageAdminSecret" . | quote }}
   OSInternalEndpoint: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
   OSExternalEndpoint: {{ include "objectstorage.apiHost" . | quote }}

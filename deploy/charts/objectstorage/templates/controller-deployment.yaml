@@ -44,6 +44,11 @@ spec:
                 configMapKeyRef:
                   name: {{ include "objectstorage.fullname" . }}-config
                   key: OSNamespace
+            - name: OSAdminNamespace
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "objectstorage.fullname" . }}-config
+                  key: OSAdminNamespace
             - name: OSAdminSecret
               valueFrom:
                 configMapKeyRef:

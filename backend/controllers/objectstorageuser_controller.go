@@ -68,6 +68,7 @@ const (
 	OSInternalEndpointEnv = "OSInternalEndpoint"
 	OSExternalEndpointEnv = "OSExternalEndpoint"
 	OSNamespace           = "OSNamespace"
+	OSAdminNamespace      = "OSAdminNamespace"
 	OSAdminSecret         = "OSAdminSecret"
 	QuotaEnabled          = "QuotaEnabled"
 
@@ -80,7 +81,16 @@ const (
 
 	ResourceQuotaPrefix       = "quota-"
 	ResourceObjectStorageSize = "objectstorage/size"
+	DefaultObjectStorageQuota = int64(20 * 1024 * 1024 * 1024)
 )
+
+func getObjectStorageAdminNamespace() string {
+	adminNamespace := env.GetEnvWithDefault(OSAdminNamespace, "")
+	if adminNamespace != "" {
+		return adminNamespace
+	}
+	return env.GetEnvWithDefault(OSNamespace, "")
+}
 
 //+kubebuilder:rbac:groups=objectstorage.sealos.io,resources=objectstorageusers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=objectstorage.sealos.io,resources=objectstorageusers/status,verbs=get;update;patch
@@ -143,15 +153,27 @@ func (r *ObjectStorageUserReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	resourceQuota := &corev1.ResourceQuota{}
+	resourceQuotaReady := true
 	if err := r.Get(ctx, client.ObjectKey{Name: ResourceQuotaPrefix + userNamespace, Namespace: userNamespace}, resourceQuota); err != nil {
-		r.Logger.Error(err, "failed to get resource quota", "name", ResourceQuotaPrefix+userNamespace, "namespace", userNamespace)
-		return ctrl.Result{}, err
+		if !errors.IsNotFound(err) {
+			r.Logger.Error(err, "failed to get resource quota", "name", ResourceQuotaPrefix+userNamespace, "namespace", userNamespace)
+			return ctrl.Result{}, err
+		}
+		resourceQuotaReady = false
+		r.Logger.Info("resource quota not found, using default object storage quota", "name", ResourceQuotaPrefix+userNamespace, "namespace", userNamespace, "quota", DefaultObjectStorageQuota)
 	}
 
-	quota := resourceQuota.Spec.Hard.Name(ResourceObjectStorageSize, resource.BinarySI)
-	used := resourceQuota.Status.Used.Name(ResourceObjectStorageSize, resource.BinarySI)
+	quotaValue := DefaultObjectStorageQuota
+	used := resource.NewQuantity(0, resource.BinarySI)
+	if resourceQuotaReady {
+		quota := resourceQuota.Spec.Hard.Name(ResourceObjectStorageSize, resource.BinarySI)
+		if !quota.IsZero() {
+			quotaValue = quota.Value()
+		}
+		used = resourceQuota.Status.Used.Name(ResourceObjectStorageSize, resource.BinarySI)
+	}
 
-	updated := r.initObjectStorageUser(user, username, quota.Value())
+	updated := r.initObjectStorageUser(user, username, quotaValue)
 
 	pwdUpdated := false
 
@@ -221,7 +243,10 @@ func (r *ObjectStorageUserReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	stringSize := ConvertBytesToString(size)
 
-	if used.String() != stringSize {
+	if resourceQuotaReady && used.String() != stringSize {
+		if resourceQuota.Status.Used == nil {
+			resourceQuota.Status.Used = corev1.ResourceList{}
+		}
 		resourceQuota.Status.Used[ResourceObjectStorageSize] = resource.MustParse(stringSize)
 		if err := r.Status().Update(ctx, resourceQuota); err != nil {
 			r.Logger.Error(err, "failed to update status", "name", resourceQuota.Name, "namespace", userNamespace)
@@ -473,7 +498,7 @@ func (r *ObjectStorageUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	externalEndpoint := env.GetEnvWithDefault(OSExternalEndpointEnv, "")
 	r.ExternalEndpoint = externalEndpoint
 
-	oSNamespace := env.GetEnvWithDefault(OSNamespace, "")
+	oSNamespace := getObjectStorageAdminNamespace()
 	r.OSNamespace = oSNamespace
 
 	oSAdminSecret := env.GetEnvWithDefault(OSAdminSecret, "")

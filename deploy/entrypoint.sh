@@ -96,7 +96,7 @@ detect_object_storage_namespace() {
   local namespace
   local found_namespace=""
 
-  for namespace in "${OBJECT_STORAGE_NAMESPACE:-}" objectstorage-system minio-system; do
+  for namespace in "${BASE_OBJECT_STORAGE_NAMESPACE:-}" "${OBJECT_STORAGE_NAMESPACE:-}" objectstorage-system minio-system; do
     if namespace_has_object_storage "$namespace"; then
       printf '%s' "$namespace"
       return 0
@@ -121,7 +121,7 @@ detect_object_storage_namespace() {
 }
 
 build_prometheus_token() {
-  local config_namespace="${1:-$OBJECT_STORAGE_NAMESPACE}"
+  local config_namespace="${1:-$BASE_OBJECT_STORAGE_NAMESPACE}"
   local minio_config_env
   local minio_root_user
   local minio_root_password
@@ -208,7 +208,7 @@ cleanup_legacy_objectstorage_resources() {
   info "Cleaning legacy objectstorage frontend/controller resources while preserving base object storage tenant"
   kubectl delete namespace objectstorage-frontend --ignore-not-found >/dev/null 2>&1 || true
 
-  if [ "$OBJECT_STORAGE_NAMESPACE" = "objectstorage-system" ]; then
+  if kubectl get namespace objectstorage-system >/dev/null 2>&1; then
     kubectl delete deployment objectstorage-controller-manager object-storage-monitor-deployment -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
     kubectl delete svc object-storage-monitor objectstorage-controller-manager-metrics-service -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
     kubectl delete ingress object-storage-monitor -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
@@ -218,8 +218,6 @@ cleanup_legacy_objectstorage_resources() {
     kubectl delete serviceaccount objectstorage-controller-manager -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
     kubectl delete role objectstorage-leader-election-role -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
     kubectl delete rolebinding objectstorage-leader-election-rolebinding -n objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
-  elif [ "$OBJECT_STORAGE_NAMESPACE" != "objectstorage-system" ]; then
-    kubectl delete namespace objectstorage-system --ignore-not-found >/dev/null 2>&1 || true
   fi
 
   kubectl delete clusterrole objectstorage-metrics-reader objectstorage-proxy-role --ignore-not-found >/dev/null 2>&1 || true
@@ -230,6 +228,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RELEASE_NAME=${RELEASE_NAME:-"objectorstorage"}
 RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-${NAMESPACE:-"objectorstorage-system"}}
+BASE_OBJECT_STORAGE_NAMESPACE=${BASE_OBJECT_STORAGE_NAMESPACE:-${OBJECT_STORAGE_NAMESPACE:-}}
 OBJECT_STORAGE_NAMESPACE=${OBJECT_STORAGE_NAMESPACE:-}
 OBJECT_STORAGE_SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-"object-storage"}
 OBJECT_STORAGE_ADMIN_SECRET=${OBJECT_STORAGE_ADMIN_SECRET:-"object-storage-user-0"}
@@ -269,7 +268,8 @@ if [ -d "$APP_VALUES_DIR" ]; then
 else
   warn "apps/objectstorage values directory ${APP_VALUES_DIR} not found, proceeding without it"
 fi
-OBJECT_STORAGE_NAMESPACE="$(detect_object_storage_namespace)"
+BASE_OBJECT_STORAGE_NAMESPACE="$(detect_object_storage_namespace)"
+OBJECT_STORAGE_NAMESPACE="$BASE_OBJECT_STORAGE_NAMESPACE"
 
 CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(get_cm_value "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain 1 0)}}"
 [ -n "$CLOUD_DOMAIN" ] || error "missing required field: configmap ${SEALOS_SYSTEM_NS}/${SEALOS_CONFIG_CM} data.cloudDomain"
@@ -278,7 +278,7 @@ read_billing_config
 PROMETHEUS_URL="${PROMETHEUS_URL:-$(read_prometheus_url)}"
 PROMETHEUS_TOKEN="${PROMETHEUS_TOKEN:-}"
 if [ -z "$PROMETHEUS_TOKEN" ]; then
-  PROMETHEUS_TOKEN="$(build_prometheus_token "$OBJECT_STORAGE_NAMESPACE")"
+  PROMETHEUS_TOKEN="$(build_prometheus_token "$BASE_OBJECT_STORAGE_NAMESPACE")"
 fi
 
 SEALOS_CLOUD_PORT="${SEALOS_CLOUD_PORT:-${cloudPort:-$(read_yaml_file_path '.global.http.httpsPort')}}"
@@ -297,12 +297,12 @@ fi
 TLS_REJECT_UNAUTHORIZED="$(read_cert_tls_reject_unauthorized)"
 FRONTEND_HOST="${FRONTEND_HOST:-objectstorage.${CLOUD_DOMAIN}}"
 FRONTEND_URL="$(global_http_external_url "${FRONTEND_HOST}")"
-OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-object-storage.${OBJECT_STORAGE_NAMESPACE}.svc.cluster.local:80}"
+OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-object-storage.${BASE_OBJECT_STORAGE_NAMESPACE}.svc.cluster.local:80}"
 OBJECT_STORAGE_EXTERNAL_HOST="${OBJECT_STORAGE_EXTERNAL_HOST:-objectstorageapi.${CLOUD_DOMAIN}}"
 
 info "Preparing release=${RELEASE_NAME}, namespace=${RELEASE_NAMESPACE}, chart=${CHART_PATH}"
 info "ObjectStorage frontend URL=${FRONTEND_URL}, disableHttps=${SEALOS_DISABLE_HTTPS}, tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}"
-info "Using base object storage namespace=${OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
+info "Using release namespace=${RELEASE_NAMESPACE}; base object storage namespace=${BASE_OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
 [ -n "$CLOUD_DOMAIN" ] && HELM_COMMON_ARGS+=("--set-string" "cloudDomain=${CLOUD_DOMAIN}")
 [ -n "$SEALOS_CLOUD_PORT" ] && HELM_COMMON_ARGS+=("--set-string" "cloudPort=${SEALOS_CLOUD_PORT}")
@@ -314,7 +314,7 @@ info "Using base object storage namespace=${OBJECT_STORAGE_NAMESPACE}, endpoint=
 [ -n "$PROMETHEUS_TOKEN" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.monitor.prometheusToken=${PROMETHEUS_TOKEN}")
 [ -n "$BILLING_URL" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingUrl=${BILLING_URL}")
 [ -n "$BILLING_SECRET" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingSecret=${BILLING_SECRET}")
-[ -n "$OBJECT_STORAGE_NAMESPACE" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.namespace=${OBJECT_STORAGE_NAMESPACE}")
+[ -n "$BASE_OBJECT_STORAGE_NAMESPACE" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.namespace=${BASE_OBJECT_STORAGE_NAMESPACE}")
 [ -n "$OBJECT_STORAGE_EXTERNAL_HOST" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.externalHost=${OBJECT_STORAGE_EXTERNAL_HOST}")
 HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
 

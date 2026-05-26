@@ -61,27 +61,9 @@ read_billing_config() {
   local account_configmap="account-manager-env"
   local account_svc_port=""
 
-  BILLING_SECRET="${BILLING_SECRET:-${billingSecret:-}}"
-  if [ -z "$BILLING_SECRET" ]; then
-    BILLING_SECRET="$(get_cm_value "$account_namespace" "$account_configmap" ACCOUNT_API_JWT_SECRET 1 0)"
-  fi
-
-  BILLING_URL="${BILLING_URL:-${billingUrl:-}}"
-  if [ -z "$BILLING_URL" ]; then
-    ACCOUNT_SVC_NAME="${ACCOUNT_SVC_NAME:-$(read_account_service_name)}"
-    if [ -n "$ACCOUNT_SVC_NAME" ] && kubectl get svc "$ACCOUNT_SVC_NAME" -n "$account_namespace" >/dev/null 2>&1; then
-      account_svc_port="$(kubectl get svc "$ACCOUNT_SVC_NAME" -n "$account_namespace" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)"
-      account_svc_port="${account_svc_port:-2333}"
-      BILLING_URL="http://${ACCOUNT_SVC_NAME}.${account_namespace}.svc:${account_svc_port}"
-    fi
-  fi
-
-  if [ -z "$BILLING_SECRET" ]; then
-    warn "Billing secret not found from ${account_namespace}/${account_configmap}.ACCOUNT_API_JWT_SECRET"
-  fi
-  if [ -z "$BILLING_URL" ]; then
-    warn "Billing service not found by selector app.kubernetes.io/instance=account-controller in namespace ${account_namespace}"
-  fi
+  ACCOUNT_SVC_NAME="$(read_account_service_name)"
+  BILLING_URL="http://${ACCOUNT_SVC_NAME}.${account_namespace}.svc:2333"
+  BILLING_SECRET="$(read_jwt_internal)"
 }
 
 namespace_has_object_storage() {
@@ -363,7 +345,7 @@ OBJECT_STORAGE_NAMESPACE="$BASE_OBJECT_STORAGE_NAMESPACE"
 
 CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(get_cm_value "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain 1 0)}}"
 [ -n "$CLOUD_DOMAIN" ] || error "missing required field: configmap ${SEALOS_SYSTEM_NS}/${SEALOS_CONFIG_CM} data.cloudDomain"
-SEALOS_JWT_INTERNAL="${SEALOS_JWT_INTERNAL:-${jwtInternal:-$(read_jwt_internal)}}"
+SEALOS_JWT_INTERNAL="${SEALOS_JWT_INTERNAL:-$(read_jwt_internal)}"
 read_billing_config
 PROMETHEUS_URL="${PROMETHEUS_URL:-$(read_prometheus_url)}"
 PROMETHEUS_TOKEN="${PROMETHEUS_TOKEN:-}"

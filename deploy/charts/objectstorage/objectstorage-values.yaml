@@ -1,6 +1,81 @@
-# Packaged defaults for Sealos app-level overrides.
-# Chart defaults stay in values.yaml; cluster-derived values are injected by
-# deploy/entrypoint.sh; user overrides are loaded from
-# /root/.sealos/cloud/values/apps/objectstorage/*-values.yaml.
+frontend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                    - object-storage-frontend
+            topologyKey: "kubernetes.io/hostname"
 
-objectstorageConfig: {}
+controller:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 5m
+      memory: 64Mi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                  - amd64
+                  - arm64
+                  - ppc64le
+                  - s390x
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                  - linux
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: "control-plane"
+                  operator: In
+                  values:
+                    - controller-manager
+            topologyKey: "kubernetes.io/hostname"
+
+objectstorageConfig:
+  minio:
+    namespace: ""
+    externalHost: ""
+  monitor:
+    externalHost: ""
+  controller:
+    userDetectionCycleSeconds: "300"
+    bucketDetectionCycleSeconds: "300"
+  renameEnable: false
+  appTokenJwtKey: ""
+  hostingPodCpuMilliCores: 200
+  hostingPodMemoryMiB: 128
+  hostingAppNamePrefix: "static-host"
+  hostingNetworkProtocol: "HTTP"
+  hostingNetworkPort: 80
+
+cloudDomain: "127.0.0.1.nip.io"
+cloudPort: ""
+httpPort: ""
+disableHttps: false
+certSecretName: "wildcard-cert"

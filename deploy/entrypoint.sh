@@ -104,20 +104,7 @@ detect_object_storage_namespace() {
 }
 
 cleanup_release_object_storage_projection() {
-  if [ "${CLEANUP_RELEASE_OBJECT_STORAGE_PROJECTION:-true}" != "true" ]; then
-    warn "Skipping release object storage projection cleanup because CLEANUP_RELEASE_OBJECT_STORAGE_PROJECTION=${CLEANUP_RELEASE_OBJECT_STORAGE_PROJECTION}"
-    return 0
-  fi
-
-  [ -n "$OBJECT_STORAGE_NAMESPACE" ] || return 0
-  if [ "$OBJECT_STORAGE_NAMESPACE" = "$RELEASE_NAMESPACE" ]; then
-    return 0
-  fi
-
-  info "Cleaning legacy projected object storage runtime from release namespace ${RELEASE_NAMESPACE}"
-  kubectl delete service,secret -n "$RELEASE_NAMESPACE" \
-    -l app.kubernetes.io/component=minio-compat \
-    --ignore-not-found >/dev/null 2>&1 || true
+  helm delete -n objectstorage-system objectstorage --ignore-not-found >/dev/null 2>&1 || true
 }
 
 namespace_has_stateful_object_storage() {
@@ -291,10 +278,7 @@ cleanup_legacy_objectstorage_resources() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RELEASE_NAME=${RELEASE_NAME:-"objectorstorage"}
-EXPECTED_RELEASE_NAMESPACE=${EXPECTED_RELEASE_NAMESPACE:-"objectstorage-system"}
-RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-"$EXPECTED_RELEASE_NAMESPACE"}
-BASE_OBJECT_STORAGE_NAMESPACE=${BASE_OBJECT_STORAGE_NAMESPACE:-${OBJECT_STORAGE_NAMESPACE:-}}
-OBJECT_STORAGE_NAMESPACE=${OBJECT_STORAGE_NAMESPACE:-}
+RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-"objectstorage-system"}
 OBJECT_STORAGE_SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-"object-storage"}
 OBJECT_STORAGE_ADMIN_SECRET=${OBJECT_STORAGE_ADMIN_SECRET:-"object-storage-user-0"}
 OBJECT_STORAGE_ENV_SECRET=${OBJECT_STORAGE_ENV_SECRET:-"object-storage-env-configuration"}
@@ -340,8 +324,6 @@ if [ -d "$APP_VALUES_DIR" ]; then
 else
   warn "apps/objectstorage values directory ${APP_VALUES_DIR} not found, proceeding without it"
 fi
-BASE_OBJECT_STORAGE_NAMESPACE="$(detect_object_storage_namespace)"
-OBJECT_STORAGE_NAMESPACE="$BASE_OBJECT_STORAGE_NAMESPACE"
 
 CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(get_cm_value "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain 1 0)}}"
 [ -n "$CLOUD_DOMAIN" ] || error "missing required field: configmap ${SEALOS_SYSTEM_NS}/${SEALOS_CONFIG_CM} data.cloudDomain"
@@ -350,7 +332,7 @@ read_billing_config
 PROMETHEUS_URL="${PROMETHEUS_URL:-$(read_prometheus_url)}"
 PROMETHEUS_TOKEN="${PROMETHEUS_TOKEN:-}"
 if [ -z "$PROMETHEUS_TOKEN" ]; then
-  PROMETHEUS_TOKEN="$(build_prometheus_token "$BASE_OBJECT_STORAGE_NAMESPACE")"
+  PROMETHEUS_TOKEN="$(build_prometheus_token "$RELEASE_NAMESPACE")"
 fi
 
 SEALOS_CLOUD_PORT="${SEALOS_CLOUD_PORT:-${cloudPort:-$(read_yaml_file_path '.global.http.httpsPort')}}"
@@ -369,12 +351,12 @@ fi
 TLS_REJECT_UNAUTHORIZED="$(read_cert_tls_reject_unauthorized)"
 FRONTEND_HOST="${FRONTEND_HOST:-objectstorage.${CLOUD_DOMAIN}}"
 FRONTEND_URL="$(global_http_external_url "${FRONTEND_HOST}")"
-OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-object-storage.${OBJECT_STORAGE_NAMESPACE}.svc.cluster.local:80}"
+OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-object-storage.${RELEASE_NAMESPACE}.svc.cluster.local:80}"
 OBJECT_STORAGE_EXTERNAL_HOST="${OBJECT_STORAGE_EXTERNAL_HOST:-objectstorageapi.${CLOUD_DOMAIN}}"
 
 info "Preparing release=${RELEASE_NAME}, namespace=${RELEASE_NAMESPACE}, chart=${CHART_PATH}"
 info "ObjectStorage frontend URL=${FRONTEND_URL}, disableHttps=${SEALOS_DISABLE_HTTPS}, tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}"
-info "Using release namespace=${RELEASE_NAMESPACE}; global object storage namespace=${OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
+info "Using release namespace=${RELEASE_NAMESPACE}; global object storage namespace=${RELEASE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
 [ -n "$CLOUD_DOMAIN" ] && HELM_COMMON_ARGS+=("--set-string" "cloudDomain=${CLOUD_DOMAIN}")
 [ -n "$SEALOS_CLOUD_PORT" ] && HELM_COMMON_ARGS+=("--set-string" "cloudPort=${SEALOS_CLOUD_PORT}")
@@ -386,7 +368,7 @@ info "Using release namespace=${RELEASE_NAMESPACE}; global object storage namesp
 [ -n "$PROMETHEUS_TOKEN" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.monitor.prometheusToken=${PROMETHEUS_TOKEN}")
 [ -n "$BILLING_URL" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingUrl=${BILLING_URL}")
 [ -n "$BILLING_SECRET" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.billingSecret=${BILLING_SECRET}")
-[ -n "$OBJECT_STORAGE_NAMESPACE" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.namespace=${OBJECT_STORAGE_NAMESPACE}")
+[ -n "$RELEASE_NAMESPACE" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.namespace=${RELEASE_NAMESPACE}")
 [ -n "$OBJECT_STORAGE_EXTERNAL_HOST" ] && HELM_COMMON_ARGS+=("--set-string" "objectstorageConfig.minio.externalHost=${OBJECT_STORAGE_EXTERNAL_HOST}")
 HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
 

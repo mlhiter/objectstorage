@@ -151,7 +151,8 @@ const MySelectInner = (
                   color: 'brightBlue.600'
                 }}
                 p="6px"
-                onClick={() => {
+                onClick={(event) => {
+                  event.stopPropagation();
                   if (onchange && value !== item.value) {
                     onchange(item.value);
                   }

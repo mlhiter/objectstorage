@@ -19,21 +19,28 @@ import { useQuotaGuarded } from '@labring/sealos-shared-sdk';
 import { useStorageOperation } from '@/hooks/useStorageOperation';
 import ErrorModal from '@/components/ErrorModal';
 import { useTranslation } from 'next-i18next';
+import { useMemo } from 'react';
 
 const EditApp = ({ bucketName, bucketPolicy }: bucketConfigQueryParam) => {
+  const router = useRouter();
+  const routeBucketName = useMemo(() => {
+    if (typeof router.query.bucketName === 'string') return router.query.bucketName;
+    const [, search = ''] = router.asPath.split('?');
+    return new URLSearchParams(search).get('bucketName') || '';
+  }, [router.asPath, router.query.bucketName]);
+  const initialBucketName = bucketName || routeBucketName;
   const methods = useForm<FormSchema>({
     defaultValues: {
       bucketAuthority: bucketPolicy,
-      bucketName
+      bucketName: initialBucketName
     }
   });
   const client = useQueryClient();
-  const router = useRouter();
   const { session } = useSessionStore();
   const { executeOperation, errorModalState, closeErrorModal } = useStorageOperation();
   const toast = useToast();
   const { t } = useTranslation(['common', 'bucket']);
-  const bucketConfigMode = bucketName ? 'edit' : 'create';
+  const bucketConfigMode = initialBucketName ? 'edit' : 'create';
   const bucketListQuery = useQuery([QueryKey.bucketList, session], listBucket, {
     enabled: !!session && bucketConfigMode === 'create'
   });
@@ -66,7 +73,11 @@ const EditApp = ({ bucketName, bucketPolicy }: bucketConfigQueryParam) => {
               ((await client.fetchQuery([QueryKey.bucketList, session], listBucket))?.list ?? [])
             : [];
 
-        if (bucketConfigMode === 'create' && isBucketNameTaken(data.bucketName, latestBucketList)) {
+        if (
+          bucketConfigMode === 'create' &&
+          data.bucketName !== initialBucketName &&
+          isBucketNameTaken(data.bucketName, latestBucketList)
+        ) {
           toast({
             title: t('bucket:bucketCreateFailed'),
             description: t('app_already_exists'),

@@ -1,7 +1,6 @@
 frontend:
   image: ghcr.io/labring/sealos-objectstorage-frontend:latest
   imagePullPolicy: Always
-  imagePullSecrets: []
   nameOverride: ""
   fullnameOverride: "object-storage-frontend"
   replicaCount: 1
@@ -48,22 +47,14 @@ platform:
   tlsRejectUnauthorized: "1"
 
 controller:
-  enabled: true
   image: ghcr.io/labring/sealos-objectstorage-controller:latest
   imagePullPolicy: Always
   replicaCount: 1
-  osNamespace: ""
-  osAdminSecret: ""
-  osInternalEndpoint: ""
-  osExternalEndpoint: ""
-  objectStorageService:
-    metricsInstance: ""
   userDetectionCycleSeconds: "300"
   bucketDetectionCycleSeconds: "300"
   monitor:
     port: 9090
     serviceName: object-storage-monitor
-    prometheusUrl: "http://vmselect-victoria-metrics-k8s-stack.vm.svc:8481/select/0/prometheus/"
     service:
       type: ClusterIP
       port: 9090
@@ -116,22 +107,16 @@ controller:
 
 objectStorage:
   namespace: objectstorage-system
-  serviceName: object-storage
-  servicePort: 80
-  adminSecret: object-storage-user-0
   externalHost: ""
   metricsInstance: ""
 
 objectstorageConfig:
-  cloudDomain: "127.0.0.1.nip.io"
-  cloudPort: ""
-  httpPort: ""
-  disableHttps: false
-  certSecretName: "wildcard-cert"
   monitorUrl: ""
+  prometheusUrl: "http://vmselect-victoria-metrics-k8s-stack.vm.svc:8481/select/0/prometheus/"
   billingUrl: ""
   billingSecret: ""
   appLaunchpadUrl: "http://applaunchpad-frontend.applaunchpad-frontend.svc.cluster.local:3000/api/v1alpha"
+  renameEnable: false
   appTokenJwtKey: ""
   hostingPodCpuMilliCores: 200
   hostingPodMemoryMiB: 128
@@ -140,10 +125,8 @@ objectstorageConfig:
   hostingNetworkPort: 80
   prometheusToken: ""
 
-imagePullSecrets: []
-
-cloudDomain: ""
+cloudDomain: "127.0.0.1.nip.io"
 cloudPort: ""
 httpPort: ""
-disableHttps: ""
-certSecretName: ""
+disableHttps: false
+certSecretName: "wildcard-cert"

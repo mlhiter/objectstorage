@@ -202,6 +202,41 @@ read_cert_tls_reject_unauthorized() {
   esac
 }
 
+read_billing_config() {
+  local account_namespace="account-system"
+  local account_configmap="account-manager-env"
+  local account_instance="account-controller"
+  local account_svc_port=""
+
+  BILLING_SECRET="${BILLING_SECRET:-${billingSecret:-}}"
+  if [ -z "$BILLING_SECRET" ]; then
+    if declare -f get_cm_value >/dev/null 2>&1; then
+      BILLING_SECRET="$(get_cm_value "$account_namespace" "$account_configmap" ACCOUNT_API_JWT_SECRET 1 0)"
+    else
+      BILLING_SECRET="$(kubectl get configmap "$account_configmap" -n "$account_namespace" -o jsonpath='{.data.ACCOUNT_API_JWT_SECRET}' 2>/dev/null || true)"
+    fi
+  fi
+
+  BILLING_URL="${BILLING_URL:-${billingUrl:-}}"
+  if [ -z "$BILLING_URL" ]; then
+    ACCOUNT_SVC_NAME="${ACCOUNT_SVC_NAME:-$(kubectl get svc -n "$account_namespace" \
+      -l "app.kubernetes.io/instance=${account_instance}" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)}"
+    if [ -n "$ACCOUNT_SVC_NAME" ]; then
+      account_svc_port="$(kubectl get svc "$ACCOUNT_SVC_NAME" -n "$account_namespace" -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)"
+      account_svc_port="${account_svc_port:-2333}"
+      BILLING_URL="http://${ACCOUNT_SVC_NAME}.${account_namespace}.svc:${account_svc_port}"
+    fi
+  fi
+
+  if [ -z "$BILLING_SECRET" ]; then
+    warn "Billing secret not found from ${account_namespace}/${account_configmap}.ACCOUNT_API_JWT_SECRET"
+  fi
+  if [ -z "$BILLING_URL" ]; then
+    warn "Billing service not found by selector app.kubernetes.io/instance=${account_instance} in namespace ${account_namespace}"
+  fi
+}
+
 namespace_has_object_storage() {
   local namespace="$1"
 
@@ -347,16 +382,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RELEASE_NAME=${RELEASE_NAME:-"objectorstorage"}
 RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-${NAMESPACE:-"objectorstorage-system"}}
 OBJECT_STORAGE_NAMESPACE=${OBJECT_STORAGE_NAMESPACE:-}
-OBJECT_STORAGE_SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-"object-storage"}
-OBJECT_STORAGE_SERVICE_PORT=${OBJECT_STORAGE_SERVICE_PORT:-"80"}
-OBJECT_STORAGE_ADMIN_SECRET=${OBJECT_STORAGE_ADMIN_SECRET:-"object-storage-user-0"}
 CHART_PATH=${CHART_PATH:-"${SCRIPT_DIR}/charts/objectstorage"}
 HELM_OPTS=${HELM_OPTS:-""}
 SEALOS_SYSTEM_NS=${SEALOS_SYSTEM_NS:-"sealos-system"}
 SEALOS_CONFIG_CM=${SEALOS_CONFIG_CM:-"sealos-config"}
-APP_VALUES_DIR=${APP_VALUES_DIR:-"/root/.sealos/cloud/values/apps/objectstorage"}
 GLOBAL_VALUES_FILE=${GLOBAL_VALUES_FILE:-"/root/.sealos/cloud/values/global.yaml"}
-CHART_APP_VALUES_FILE=${CHART_APP_VALUES_FILE:-"${CHART_PATH}/objectstorage-values.yaml"}
+PACKAGED_APP_VALUES_FILE=${PACKAGED_APP_VALUES_FILE:-${CHART_APP_VALUES_FILE:-"${CHART_PATH}/objectstorage-values.yaml"}}
+APP_VALUES_DIR=${APP_VALUES_DIR:-"/root/.sealos/cloud/values/apps/objectstorage"}
 
 [ -d "$CHART_PATH" ] || die "chart directory not found: ${CHART_PATH}"
 
@@ -369,13 +401,13 @@ HELM_COMMON_ARGS=()
 load_http_tools
 ensure_http_tool_fallbacks
 
-append_values_file_arg "$GLOBAL_VALUES_FILE" "global"
-append_values_file_arg "$CHART_APP_VALUES_FILE" "apps/objectstorage default"
+append_values_file_arg "$PACKAGED_APP_VALUES_FILE" "apps/objectstorage default"
 append_values_dir_args "$APP_VALUES_DIR" "apps/objectstorage"
 OBJECT_STORAGE_NAMESPACE="$(detect_object_storage_namespace)"
 
 CLOUD_DOMAIN="${SEALOS_CLOUD_DOMAIN:-${cloudDomain:-$(required_resource_data configmap "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" cloudDomain)}}"
 SEALOS_JWT_INTERNAL="${SEALOS_JWT_INTERNAL:-${jwtInternal:-$(required_resource_data configmap "$SEALOS_SYSTEM_NS" "$SEALOS_CONFIG_CM" jwtInternal)}}"
+read_billing_config
 PROMETHEUS_TOKEN="${PROMETHEUS_TOKEN:-}"
 if [ -z "$PROMETHEUS_TOKEN" ]; then
   PROMETHEUS_TOKEN="$(build_prometheus_token "$OBJECT_STORAGE_NAMESPACE")"
@@ -395,7 +427,7 @@ fi
 TLS_REJECT_UNAUTHORIZED="$(read_cert_tls_reject_unauthorized)"
 FRONTEND_HOST="${FRONTEND_HOST:-objectstorage.${CLOUD_DOMAIN}}"
 FRONTEND_URL="$(global_http_external_url "${FRONTEND_HOST}")"
-OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-${OBJECT_STORAGE_SERVICE_NAME}.${OBJECT_STORAGE_NAMESPACE}.svc.cluster.local:${OBJECT_STORAGE_SERVICE_PORT}}"
+OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-object-storage.${OBJECT_STORAGE_NAMESPACE}.svc.cluster.local:80}"
 OBJECT_STORAGE_EXTERNAL_HOST="${OBJECT_STORAGE_EXTERNAL_HOST:-objectstorageapi.${CLOUD_DOMAIN}}"
 OBJECT_STORAGE_METRICS_INSTANCE="${OBJECT_STORAGE_METRICS_INSTANCE:-$OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
@@ -403,38 +435,18 @@ info "Preparing release=${RELEASE_NAME}, namespace=${RELEASE_NAMESPACE}, chart=$
 info "ObjectStorage frontend URL=${FRONTEND_URL}, disableHttps=${SEALOS_DISABLE_HTTPS}, tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}"
 info "Using base object storage namespace=${OBJECT_STORAGE_NAMESPACE}, endpoint=${OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
-append_set_string_if_present "$CLOUD_DOMAIN" "objectstorageConfig.cloudDomain"
 append_set_string_if_present "$CLOUD_DOMAIN" "cloudDomain"
-append_set_string_if_present "$SEALOS_CLOUD_PORT" "objectstorageConfig.cloudPort"
 append_set_string_if_present "$SEALOS_CLOUD_PORT" "cloudPort"
-append_set_string_if_present "$SEALOS_HTTP_PORT" "objectstorageConfig.httpPort"
 append_set_string_if_present "$SEALOS_HTTP_PORT" "httpPort"
-append_set_string_if_present "$SEALOS_DISABLE_HTTPS" "objectstorageConfig.disableHttps"
 append_set_string_if_present "$SEALOS_DISABLE_HTTPS" "disableHttps"
-append_set_string_if_present "$SEALOS_CERT_SECRET_NAME" "objectstorageConfig.certSecretName"
 append_set_string_if_present "$SEALOS_CERT_SECRET_NAME" "certSecretName"
 append_set_string_if_present "$SEALOS_JWT_INTERNAL" "objectstorageConfig.appTokenJwtKey"
 append_set_string_if_present "$PROMETHEUS_TOKEN" "objectstorageConfig.prometheusToken"
-append_set_string_if_present "$OBJECT_STORAGE_NAMESPACE" "controller.osNamespace"
+append_set_string_if_present "$BILLING_URL" "objectstorageConfig.billingUrl"
+append_set_string_if_present "$BILLING_SECRET" "objectstorageConfig.billingSecret"
 append_set_string_if_present "$OBJECT_STORAGE_NAMESPACE" "objectStorage.namespace"
-append_set_string_if_present "$OBJECT_STORAGE_SERVICE_NAME" "objectStorage.serviceName"
-append_set_string_if_present "$OBJECT_STORAGE_SERVICE_PORT" "objectStorage.servicePort"
-append_set_string_if_present "$OBJECT_STORAGE_ADMIN_SECRET" "controller.osAdminSecret"
-append_set_string_if_present "$OBJECT_STORAGE_ADMIN_SECRET" "objectStorage.adminSecret"
-append_set_string_if_present "$OBJECT_STORAGE_INTERNAL_ENDPOINT" "controller.osInternalEndpoint"
-append_set_string_if_present "$OBJECT_STORAGE_EXTERNAL_HOST" "controller.osExternalEndpoint"
 append_set_string_if_present "$OBJECT_STORAGE_EXTERNAL_HOST" "objectStorage.externalHost"
-append_set_string_if_present "$OBJECT_STORAGE_METRICS_INSTANCE" "controller.objectStorageService.metricsInstance"
 append_set_string_if_present "$OBJECT_STORAGE_METRICS_INSTANCE" "objectStorage.metricsInstance"
-append_set_string_if_present "${monitorUrl:-}" "objectstorageConfig.monitorUrl"
-append_set_string_if_present "${billingUrl:-}" "objectstorageConfig.billingUrl"
-append_set_string_if_present "${billingSecret:-}" "objectstorageConfig.billingSecret"
-append_set_string_if_present "${appLaunchpadUrl:-}" "objectstorageConfig.appLaunchpadUrl"
-append_set_string_if_present "${hostingPodCpuMilliCores:-}" "objectstorageConfig.hostingPodCpuMilliCores"
-append_set_string_if_present "${hostingPodMemoryMiB:-}" "objectstorageConfig.hostingPodMemoryMiB"
-append_set_string_if_present "${hostingAppNamePrefix:-}" "objectstorageConfig.hostingAppNamePrefix"
-append_set_string_if_present "${hostingNetworkProtocol:-}" "objectstorageConfig.hostingNetworkProtocol"
-append_set_string_if_present "${hostingNetworkPort:-}" "objectstorageConfig.hostingNetworkPort"
 HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
 
 adopt_existing_objectstorage_resources

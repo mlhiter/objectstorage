@@ -8,11 +8,11 @@ metadata:
 data:
   config.yaml: |-
     cloud:
-      domain: {{ default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain | quote }}
+      domain: {{ .Values.cloudDomain | quote }}
       {{- if eq (include "objectstorage.scheme" .) "http" }}
-      port: {{ default 80 (default .Values.objectstorageConfig.httpPort .Values.httpPort) }}
+      port: {{ default 80 .Values.httpPort }}
       {{- else }}
-      port: {{ default 443 (default .Values.objectstorageConfig.cloudPort .Values.cloudPort) }}
+      port: {{ default 443 .Values.cloudPort }}
       {{- end }}
     objectStorage:
       resources:
@@ -30,7 +30,11 @@ data:
           internalEndpoint: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
           externalEndpoint: {{ include "objectstorage.apiHost" . | quote }}
       realName:
+        {{- if .Values.objectstorageConfig.renameEnable }}
         appTokenJwtKey: {{ .Values.objectstorageConfig.appTokenJwtKey | quote }}
+        {{- else }}
+        appTokenJwtKey: ""
+        {{- end }}
       hosting:
         appNamePrefix: {{ .Values.objectstorageConfig.hostingAppNamePrefix | quote }}
         networkProtocol: {{ .Values.objectstorageConfig.hostingNetworkProtocol | quote }}

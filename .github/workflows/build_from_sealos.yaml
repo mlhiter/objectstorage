@@ -42,7 +42,7 @@ jobs:
 
           RAW_VERSION="${{ github.event.inputs.version || '' }}"
           if [[ -z "$(echo "${RAW_VERSION}" | xargs)" ]]; then
-            RAW_VERSION="sha-${GITHUB_SHA}"
+            RAW_VERSION="sha-$(echo "${GITHUB_SHA}" | cut -c1-7)"
           fi
 
           IMAGE_TAG="$(echo "${RAW_VERSION}" | xargs)"

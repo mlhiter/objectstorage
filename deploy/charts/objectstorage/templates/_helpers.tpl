@@ -41,15 +41,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.scheme" -}}
-{{- $disableHttps := default .Values.objectstorageConfig.disableHttps .Values.disableHttps -}}
+{{- $disableHttps := .Values.disableHttps -}}
 {{- if eq (toString $disableHttps) "true" -}}http{{- else -}}https{{- end -}}
 {{- end }}
 
 {{- define "objectstorage.port" -}}
 {{- $scheme := include "objectstorage.scheme" . -}}
-{{- $port := toString (default .Values.objectstorageConfig.cloudPort .Values.cloudPort) -}}
+{{- $port := toString .Values.cloudPort -}}
 {{- if eq $scheme "http" -}}
-{{- $port = toString (default .Values.objectstorageConfig.httpPort .Values.httpPort) -}}
+{{- $port = toString .Values.httpPort -}}
 {{- end -}}
 {{- if or (and (eq $scheme "https") (or (eq $port "") (eq $port "443"))) (and (eq $scheme "http") (or (eq $port "") (eq $port "80"))) -}}
 {{- "" -}}
@@ -69,15 +69,15 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.cloudOrigin" -}}
-{{- include "objectstorage.scheme" . -}}://{{ default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain }}{{ include "objectstorage.portSuffix" . }}
+{{- include "objectstorage.scheme" . -}}://{{ .Values.cloudDomain }}{{ include "objectstorage.portSuffix" . }}
 {{- end }}
 
 {{- define "objectstorage.wildcardCloudOrigin" -}}
-{{- include "objectstorage.scheme" . -}}://*.{{ default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain }}{{ include "objectstorage.portSuffix" . }}
+{{- include "objectstorage.scheme" . -}}://*.{{ .Values.cloudDomain }}{{ include "objectstorage.portSuffix" . }}
 {{- end }}
 
 {{- define "objectstorage.host" -}}
-{{- $cloudDomain := default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain -}}
+{{- $cloudDomain := .Values.cloudDomain -}}
 {{- default (printf "objectstorage.%s" $cloudDomain) .Values.frontend.ingress.host -}}
 {{- end }}
 
@@ -86,9 +86,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.apiHost" -}}
-{{- $cloudDomain := default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain -}}
-{{- $externalHost := default .Values.objectStorage.externalHost .Values.controller.osExternalEndpoint -}}
-{{- default (printf "objectstorageapi.%s" $cloudDomain) $externalHost -}}
+{{- default (printf "objectstorageapi.%s" .Values.cloudDomain) .Values.objectStorage.externalHost -}}
 {{- end }}
 
 {{- define "objectstorage.apiOrigin" -}}
@@ -96,26 +94,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.objectStorageNamespace" -}}
-{{- default "objectstorage-system" (default .Values.objectStorage.namespace .Values.controller.osNamespace) -}}
+{{- default "objectstorage-system" .Values.objectStorage.namespace -}}
 {{- end }}
 
 {{- define "objectstorage.objectStorageAdminSecret" -}}
-{{- default "object-storage-user-0" (default .Values.objectStorage.adminSecret .Values.controller.osAdminSecret) -}}
+object-storage-user-0
 {{- end }}
 
 {{- define "objectstorage.objectStorageEndpoint" -}}
-{{- if .Values.controller.osInternalEndpoint -}}
-{{- .Values.controller.osInternalEndpoint -}}
-{{- else -}}
-{{- $serviceName := default "object-storage" .Values.objectStorage.serviceName -}}
-{{- $servicePort := default 80 .Values.objectStorage.servicePort -}}
-{{- printf "%s.%s.svc.cluster.local:%v" $serviceName (include "objectstorage.objectStorageNamespace" .) $servicePort -}}
-{{- end -}}
+{{- printf "object-storage.%s.svc.cluster.local:80" (include "objectstorage.objectStorageNamespace" .) -}}
 {{- end }}
 
 {{- define "objectstorage.objectStorageMetricsInstance" -}}
-{{- $metricsInstance := default .Values.objectStorage.metricsInstance .Values.controller.objectStorageService.metricsInstance -}}
-{{- default (include "objectstorage.objectStorageEndpoint" .) $metricsInstance -}}
+{{- default (include "objectstorage.objectStorageEndpoint" .) .Values.objectStorage.metricsInstance -}}
 {{- end }}
 
 {{- define "objectstorage.monitorServiceName" -}}
@@ -123,7 +114,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.monitorHost" -}}
-{{- $cloudDomain := default .Values.objectstorageConfig.cloudDomain .Values.cloudDomain -}}
+{{- $cloudDomain := .Values.cloudDomain -}}
 {{- default (printf "object-storage-monitor.%s" $cloudDomain) .Values.controller.monitor.ingress.host -}}
 {{- end }}
 

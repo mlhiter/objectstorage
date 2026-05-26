@@ -1,4 +1,3 @@
-{{- if .Values.controller.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -185,4 +184,3 @@ subjects:
   - kind: ServiceAccount
     name: objectstorage-controller-manager
     namespace: {{ .Release.Namespace }}
-{{- end }}

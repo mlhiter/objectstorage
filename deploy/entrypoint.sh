@@ -138,6 +138,17 @@ cleanup_release_object_storage_projection() {
     --ignore-not-found >/dev/null 2>&1 || true
 }
 
+namespace_has_stateful_object_storage() {
+  local namespace="$1"
+
+  [ -n "$namespace" ] || return 1
+  kubectl get tenants.minio.min.io object-storage -n "$namespace" >/dev/null 2>&1 && return 0
+  kubectl get pvc -n "$namespace" --no-headers 2>/dev/null | awk '
+    $1 ~ /^data[0-9]*-object-storage-pool-/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  '
+}
+
 build_prometheus_token() {
   local config_namespace="${1:-$BASE_OBJECT_STORAGE_NAMESPACE}"
   local minio_config_env
@@ -221,6 +232,64 @@ wait_for_objectstorage_rollout() {
   kubectl rollout status deployment/object-storage-frontend -n "$RELEASE_NAMESPACE" --timeout="$timeout"
 }
 
+delete_legacy_objectstorage_runtime() {
+  local namespace="$1"
+
+  kubectl delete deployment objectstorage-controller-manager object-storage-frontend object-storage-monitor-deployment \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete service object-storage-frontend object-storage-monitor objectstorage-controller-manager-metrics-service \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete configmap object-storage-frontend-config object-storage-monitor-config \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete secret object-storage-probe \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete serviceaccount objectstorage-controller-manager \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete role objectstorage-leader-election-role \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete rolebinding objectstorage-leader-election-rolebinding \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete ingress object-storage-frontend object-storage-monitor \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete vmprobe object-storage-cluster object-storage-bucket \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete secret -l "owner=helm,name=${RELEASE_NAME}" \
+    -n "$namespace" --ignore-not-found >/dev/null 2>&1 || true
+}
+
+wait_for_namespace_deleted() {
+  local namespace="$1"
+  local timeout="${LEGACY_NAMESPACE_DELETE_TIMEOUT_SECONDS:-120}"
+  local elapsed=0
+
+  while kubectl get namespace "$namespace" >/dev/null 2>&1; do
+    if [ "$elapsed" -ge "$timeout" ]; then
+      error "legacy namespace ${namespace} still exists after ${timeout}s"
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+}
+
+cleanup_legacy_objectstorage_namespace() {
+  local namespace="$1"
+
+  [ -n "$namespace" ] || return 0
+  [ "$namespace" != "$RELEASE_NAMESPACE" ] || return 0
+  kubectl get namespace "$namespace" >/dev/null 2>&1 || return 0
+
+  info "Cleaning legacy objectstorage namespace ${namespace}"
+  delete_legacy_objectstorage_runtime "$namespace"
+
+  if namespace_has_stateful_object_storage "$namespace"; then
+    warn "Skipping namespace deletion for ${namespace} because it contains stateful object storage data"
+    return 0
+  fi
+
+  kubectl delete namespace "$namespace" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  wait_for_namespace_deleted "$namespace"
+}
+
 cleanup_legacy_objectstorage_resources() {
   if [ "${CLEANUP_LEGACY_OBJECTSTORAGE:-true}" != "true" ]; then
     warn "Skipping legacy objectstorage cleanup because CLEANUP_LEGACY_OBJECTSTORAGE=${CLEANUP_LEGACY_OBJECTSTORAGE}"
@@ -228,10 +297,8 @@ cleanup_legacy_objectstorage_resources() {
   fi
 
   info "Cleaning legacy objectstorage frontend/controller resources while preserving base object storage tenant"
-  kubectl delete namespace objectstorage-frontend --ignore-not-found >/dev/null 2>&1 || true
-  if [ "$RELEASE_NAMESPACE" != "objectorstorage-system" ]; then
-    kubectl delete namespace objectorstorage-system --ignore-not-found >/dev/null 2>&1 || true
-  fi
+  cleanup_legacy_objectstorage_namespace objectstorage-frontend
+  cleanup_legacy_objectstorage_namespace objectorstorage-system
   kubectl delete deployment object-storage-monitor-deployment -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
   kubectl delete configmap object-storage-monitor-config -n "$RELEASE_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 
@@ -242,7 +309,8 @@ cleanup_legacy_objectstorage_resources() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RELEASE_NAME=${RELEASE_NAME:-"objectorstorage"}
-RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-${NAMESPACE:-"objectstorage-system"}}
+EXPECTED_RELEASE_NAMESPACE=${EXPECTED_RELEASE_NAMESPACE:-"objectstorage-system"}
+RELEASE_NAMESPACE=${RELEASE_NAMESPACE:-"$EXPECTED_RELEASE_NAMESPACE"}
 BASE_OBJECT_STORAGE_NAMESPACE=${BASE_OBJECT_STORAGE_NAMESPACE:-${OBJECT_STORAGE_NAMESPACE:-}}
 OBJECT_STORAGE_NAMESPACE=${OBJECT_STORAGE_NAMESPACE:-}
 OBJECT_STORAGE_SERVICE_NAME=${OBJECT_STORAGE_SERVICE_NAME:-"object-storage"}
@@ -268,6 +336,12 @@ load_cloud_tools_or_exit
 for cmd in helm kubectl base64 openssl; do
   command -v "$cmd" >/dev/null 2>&1 || error "missing required command: ${cmd}"
 done
+
+if [ "$RELEASE_NAMESPACE" != "$EXPECTED_RELEASE_NAMESPACE" ]; then
+  error "unsupported RELEASE_NAMESPACE=${RELEASE_NAMESPACE}; objectstorage release must deploy into ${EXPECTED_RELEASE_NAMESPACE}"
+fi
+
+cleanup_legacy_objectstorage_resources
 
 if [ -f "$PACKAGED_APP_VALUES_FILE" ]; then
   info "Using apps/objectstorage default Helm values from ${PACKAGED_APP_VALUES_FILE}"

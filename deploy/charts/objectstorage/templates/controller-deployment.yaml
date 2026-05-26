@@ -47,13 +47,13 @@ spec:
             - name: OSExternalEndpoint
               value: {{ include "objectstorage.apiHost" . | quote }}
             - name: OSUDetectionCycleSeconds
-              value: {{ .Values.controller.userDetectionCycleSeconds | quote }}
+              value: {{ .Values.objectstorageConfig.controller.userDetectionCycleSeconds | quote }}
             - name: OSBDetectionCycleSeconds
-              value: {{ .Values.controller.bucketDetectionCycleSeconds | quote }}
+              value: {{ .Values.objectstorageConfig.controller.bucketDetectionCycleSeconds | quote }}
             - name: OBJECT_STORAGE_INSTANCE
-              value: {{ include "objectstorage.objectStorageMetricsInstance" . | quote }}
+              value: {{ include "objectstorage.objectStorageEndpoint" . | quote }}
             - name: PROMETHEUS_SERVICE_HOST
-              value: {{ .Values.objectstorageConfig.prometheusUrl | quote }}
+              value: {{ .Values.objectstorageConfig.monitor.prometheusUrl | quote }}
           ports:
             - name: monitor
               containerPort: {{ .Values.controller.monitor.port }}

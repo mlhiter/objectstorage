@@ -429,7 +429,6 @@ FRONTEND_HOST="${FRONTEND_HOST:-objectstorage.${CLOUD_DOMAIN}}"
 FRONTEND_URL="$(global_http_external_url "${FRONTEND_HOST}")"
 OBJECT_STORAGE_INTERNAL_ENDPOINT="${OBJECT_STORAGE_INTERNAL_ENDPOINT:-object-storage.${OBJECT_STORAGE_NAMESPACE}.svc.cluster.local:80}"
 OBJECT_STORAGE_EXTERNAL_HOST="${OBJECT_STORAGE_EXTERNAL_HOST:-objectstorageapi.${CLOUD_DOMAIN}}"
-OBJECT_STORAGE_METRICS_INSTANCE="${OBJECT_STORAGE_METRICS_INSTANCE:-$OBJECT_STORAGE_INTERNAL_ENDPOINT}"
 
 info "Preparing release=${RELEASE_NAME}, namespace=${RELEASE_NAMESPACE}, chart=${CHART_PATH}"
 info "ObjectStorage frontend URL=${FRONTEND_URL}, disableHttps=${SEALOS_DISABLE_HTTPS}, tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}"
@@ -441,12 +440,11 @@ append_set_string_if_present "$SEALOS_HTTP_PORT" "httpPort"
 append_set_string_if_present "$SEALOS_DISABLE_HTTPS" "disableHttps"
 append_set_string_if_present "$SEALOS_CERT_SECRET_NAME" "certSecretName"
 append_set_string_if_present "$SEALOS_JWT_INTERNAL" "objectstorageConfig.appTokenJwtKey"
-append_set_string_if_present "$PROMETHEUS_TOKEN" "objectstorageConfig.prometheusToken"
+append_set_string_if_present "$PROMETHEUS_TOKEN" "objectstorageConfig.monitor.prometheusToken"
 append_set_string_if_present "$BILLING_URL" "objectstorageConfig.billingUrl"
 append_set_string_if_present "$BILLING_SECRET" "objectstorageConfig.billingSecret"
-append_set_string_if_present "$OBJECT_STORAGE_NAMESPACE" "objectStorage.namespace"
-append_set_string_if_present "$OBJECT_STORAGE_EXTERNAL_HOST" "objectStorage.externalHost"
-append_set_string_if_present "$OBJECT_STORAGE_METRICS_INSTANCE" "objectStorage.metricsInstance"
+append_set_string_if_present "$OBJECT_STORAGE_NAMESPACE" "objectstorageConfig.minio.namespace"
+append_set_string_if_present "$OBJECT_STORAGE_EXTERNAL_HOST" "objectstorageConfig.minio.externalHost"
 HELM_COMMON_ARGS+=(--set-string "platform.tlsRejectUnauthorized=${TLS_REJECT_UNAUTHORIZED}")
 
 adopt_existing_objectstorage_resources

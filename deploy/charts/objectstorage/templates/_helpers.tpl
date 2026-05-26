@@ -86,7 +86,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.apiHost" -}}
-{{- default (printf "objectstorageapi.%s" .Values.cloudDomain) .Values.objectStorage.externalHost -}}
+{{- default (printf "objectstorageapi.%s" .Values.cloudDomain) .Values.objectstorageConfig.minio.externalHost -}}
 {{- end }}
 
 {{- define "objectstorage.apiOrigin" -}}
@@ -94,7 +94,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{- define "objectstorage.objectStorageNamespace" -}}
-{{- default "objectstorage-system" .Values.objectStorage.namespace -}}
+{{- default "objectstorage-system" .Values.objectstorageConfig.minio.namespace -}}
 {{- end }}
 
 {{- define "objectstorage.objectStorageAdminSecret" -}}
@@ -105,23 +105,15 @@ object-storage-user-0
 {{- printf "object-storage.%s.svc.cluster.local:80" (include "objectstorage.objectStorageNamespace" .) -}}
 {{- end }}
 
-{{- define "objectstorage.objectStorageMetricsInstance" -}}
-{{- default (include "objectstorage.objectStorageEndpoint" .) .Values.objectStorage.metricsInstance -}}
-{{- end }}
-
 {{- define "objectstorage.monitorServiceName" -}}
 {{- default "object-storage-monitor" .Values.controller.monitor.serviceName -}}
 {{- end }}
 
 {{- define "objectstorage.monitorHost" -}}
 {{- $cloudDomain := .Values.cloudDomain -}}
-{{- default (printf "object-storage-monitor.%s" $cloudDomain) .Values.controller.monitor.ingress.host -}}
+{{- default (printf "object-storage-monitor.%s" $cloudDomain) .Values.objectstorageConfig.monitor.externalHost -}}
 {{- end }}
 
 {{- define "objectstorage.monitorUrl" -}}
-{{- if .Values.objectstorageConfig.monitorUrl -}}
-{{- .Values.objectstorageConfig.monitorUrl -}}
-{{- else -}}
 {{- printf "http://%s.%s.svc.cluster.local:%v/q" (include "objectstorage.monitorServiceName" .) .Release.Namespace .Values.controller.monitor.service.port -}}
-{{- end -}}
 {{- end }}

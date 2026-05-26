@@ -50,8 +50,6 @@ controller:
   image: ghcr.io/labring/sealos-objectstorage-controller:latest
   imagePullPolicy: Always
   replicaCount: 1
-  userDetectionCycleSeconds: "300"
-  bucketDetectionCycleSeconds: "300"
   monitor:
     port: 9090
     serviceName: object-storage-monitor
@@ -60,7 +58,6 @@ controller:
       port: 9090
     ingress:
       className: nginx
-      host: ""
       annotations: {}
   resources:
     limits:
@@ -105,14 +102,17 @@ controller:
                     - controller-manager
             topologyKey: "kubernetes.io/hostname"
 
-objectStorage:
-  namespace: objectstorage-system
-  externalHost: ""
-  metricsInstance: ""
-
 objectstorageConfig:
-  monitorUrl: ""
-  prometheusUrl: "http://vmselect-victoria-metrics-k8s-stack.vm.svc:8481/select/0/prometheus/"
+  minio:
+    namespace: objectstorage-system
+    externalHost: ""
+  monitor:
+    externalHost: ""
+    prometheusUrl: "http://vmselect-victoria-metrics-k8s-stack.vm.svc:8481/select/0/prometheus/"
+    prometheusToken: ""
+  controller:
+    userDetectionCycleSeconds: "300"
+    bucketDetectionCycleSeconds: "300"
   billingUrl: ""
   billingSecret: ""
   appLaunchpadUrl: "http://applaunchpad-frontend.applaunchpad-frontend.svc.cluster.local:3000/api/v1alpha"
@@ -123,7 +123,6 @@ objectstorageConfig:
   hostingAppNamePrefix: "static-host"
   hostingNetworkProtocol: "HTTP"
   hostingNetworkPort: 80
-  prometheusToken: ""
 
 cloudDomain: "127.0.0.1.nip.io"
 cloudPort: ""

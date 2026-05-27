@@ -43,6 +43,8 @@ spec:
           env:
             - name: NODE_TLS_REJECT_UNAUTHORIZED
               value: {{ .Values.platform.tlsRejectUnauthorized | quote }}
+            - name: OBJECT_STORAGE_QUOTA_CHECK_ENABLED
+              value: {{ .Values.objectstorageConfig.quotaCheckEnabled | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.frontend.service.port }}

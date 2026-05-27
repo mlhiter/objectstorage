@@ -47,16 +47,16 @@ const BasicConfigHookForm = () => {
 
   const authorityList = [
     {
-      label: Authority.private,
+      label: t('bucket:privateBucketLabel'),
       value: Authority.private
     },
     {
       value: Authority.readonly,
-      label: Authority.readonly
+      label: t('bucket:sharedBucketReadLabel')
     },
     {
       value: Authority.readwrite,
-      label: Authority.readwrite
+      label: t('bucket:sharedBucketReadWriteLabel')
     }
   ];
   const selectedAuthority = useWatch<FormSchema, 'bucketAuthority'>({

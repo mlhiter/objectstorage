@@ -1,7 +1,9 @@
 import { Authority } from '@/consts';
 import { BackgroundProps, ColorProps, Flex } from '@chakra-ui/react';
+import { useTranslation } from 'next-i18next';
 
 export default function AuthorityTips({ authority }: { authority: Authority }) {
+  const { t } = useTranslation('bucket');
   const style: Record<Authority, ColorProps & BackgroundProps> = {
     [Authority.readonly]: {
       color: 'adora.600',
@@ -16,16 +18,20 @@ export default function AuthorityTips({ authority }: { authority: Authority }) {
       bgColor: 'teal.50'
     }
   };
+  const label: Record<Authority, string> = {
+    [Authority.readonly]: t('sharedBucketReadLabel'),
+    [Authority.private]: t('privateBucketLabel'),
+    [Authority.readwrite]: t('sharedBucketReadWriteLabel')
+  };
   return (
     <Flex
       px="8px"
       py="4px"
       borderRadius={'4px'}
       {...style[authority]}
-      textTransform={'capitalize'}
       fontSize={'11px'}
     >
-      {authority}
+      {label[authority]}
     </Flex>
   );
 }

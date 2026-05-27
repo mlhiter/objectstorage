@@ -1,23 +1,36 @@
 import { useCallback } from 'react';
 import { useQuotaGuarded, type QuotaGuardedOptions } from '@labring/sealos-shared-sdk';
-import { useClientAppConfig } from './useClientAppConfig';
+import { isWorkspaceQuotaUnsupportedError } from '@/utils/quotaGuard';
 
 type QuotaGuardedCallback = () => void | Promise<void>;
+type WorkspaceQuotaSupport = 'unknown' | 'supported' | 'unsupported';
+
+let workspaceQuotaSupport: WorkspaceQuotaSupport = 'unknown';
 
 export function useObjectStorageQuotaGuarded(
   options: QuotaGuardedOptions,
   callback: QuotaGuardedCallback
 ) {
-  const appConfig = useClientAppConfig();
   const guardedCallback = useQuotaGuarded(options, callback);
-  const quotaGuardEnabled = appConfig.objectStorage.quotaGuard.enabled;
 
   return useCallback(async () => {
-    if (quotaGuardEnabled) {
-      await guardedCallback();
+    if (workspaceQuotaSupport === 'unsupported') {
+      await Promise.resolve().then(() => callback());
       return;
     }
 
-    await Promise.resolve().then(() => callback());
-  }, [callback, guardedCallback, quotaGuardEnabled]);
+    try {
+      await guardedCallback();
+      workspaceQuotaSupport = 'supported';
+      return;
+    } catch (error) {
+      if (isWorkspaceQuotaUnsupportedError(error)) {
+        workspaceQuotaSupport = 'unsupported';
+        await Promise.resolve().then(() => callback());
+        return;
+      }
+
+      throw error;
+    }
+  }, [callback, guardedCallback]);
 }

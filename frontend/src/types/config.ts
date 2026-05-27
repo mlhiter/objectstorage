@@ -74,9 +74,6 @@ export const ClientAppConfigSchema = z.strictObject({
       appNamePrefix: z.string(),
       networkProtocol: z.enum(['HTTP', 'HTTPS']),
       networkPort: z.number().int().positive()
-    }),
-    quotaGuard: z.strictObject({
-      enabled: z.boolean()
     })
   })
 });

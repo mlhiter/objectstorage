@@ -117,7 +117,6 @@ objectstorageConfig:
   hostingAppNamePrefix: "static-host"
   hostingNetworkProtocol: "HTTP"
   hostingNetworkPort: 80
-  quotaCheckEnabled: false
 
 cloudDomain: "127.0.0.1.nip.io"
 cloudPort: ""

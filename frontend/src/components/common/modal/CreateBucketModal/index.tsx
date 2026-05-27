@@ -3,7 +3,7 @@ import AddIcon from '@/components/Icons/AddIcon';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import useSessionStore from '@/store/session';
-import { useQuotaGuarded } from '@labring/sealos-shared-sdk';
+import { useObjectStorageQuotaGuarded } from '@/hooks/useObjectStorageQuotaGuarded';
 
 export default function CreateBucketModal({
   buttonType = 'min',
@@ -13,7 +13,7 @@ export default function CreateBucketModal({
   const { t } = useTranslation('common');
   const { session } = useSessionStore();
 
-  const handleCreateBucket = useQuotaGuarded(
+  const handleCreateBucket = useObjectStorageQuotaGuarded(
     {
       requirements: {
         traffic: true

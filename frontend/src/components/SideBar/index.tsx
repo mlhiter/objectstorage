@@ -31,7 +31,7 @@ import { formatBytesForDisplay } from '@/utils/tools';
 import { useTranslation } from 'next-i18next';
 import DeleteBucketModal from '../common/modal/DeleteBucketModal';
 import useSessionStore from '@/store/session';
-import { useQuotaGuarded } from '@labring/sealos-shared-sdk';
+import { useObjectStorageQuotaGuarded } from '@/hooks/useObjectStorageQuotaGuarded';
 import { useEffect, useMemo } from 'react';
 
 function MoreMenu({ bucket }: { bucket: TBucket }) {
@@ -39,7 +39,7 @@ function MoreMenu({ bucket }: { bucket: TBucket }) {
   const { t } = useTranslation(['common', 'bucket']);
   const { session } = useSessionStore();
 
-  const handleEditBucket = useQuotaGuarded(
+  const handleEditBucket = useObjectStorageQuotaGuarded(
     {
       requirements: {
         traffic: true

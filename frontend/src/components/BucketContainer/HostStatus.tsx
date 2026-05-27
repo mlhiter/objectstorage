@@ -21,7 +21,7 @@ import { useMemo, useState } from 'react';
 import { isArray } from 'lodash';
 import { sealosApp } from '@labring/sealos-desktop-sdk/app';
 import { useToast } from '@/hooks/useToast';
-import { useQuotaGuarded } from '@labring/sealos-shared-sdk';
+import { useObjectStorageQuotaGuarded } from '@/hooks/useObjectStorageQuotaGuarded';
 import { ResponseCode } from '@/types/response';
 import ErrorModal from '../ErrorModal';
 import { useClientAppConfig } from '@/hooks/useClientAppConfig';
@@ -124,7 +124,7 @@ export function HostStatus() {
     }
   );
 
-  const handleOpenHosting = useQuotaGuarded(
+  const handleOpenHosting = useObjectStorageQuotaGuarded(
     {
       requirements: {
         cpu: appConfig.objectStorage.resources.hostingPodCpuMilliCores,

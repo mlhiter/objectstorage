@@ -15,7 +15,7 @@ import {
 import { createBucket, listBucket } from '@/api/bucket';
 import { useRouter } from 'next/router';
 import useSessionStore from '@/store/session';
-import { useQuotaGuarded } from '@labring/sealos-shared-sdk';
+import { useObjectStorageQuotaGuarded } from '@/hooks/useObjectStorageQuotaGuarded';
 import { useStorageOperation } from '@/hooks/useStorageOperation';
 import ErrorModal from '@/components/ErrorModal';
 import { useTranslation } from 'next-i18next';
@@ -115,7 +115,7 @@ const EditApp = ({ bucketName, bucketPolicy }: bucketConfigQueryParam) => {
     )();
   };
 
-  const handleCreateSubmit = useQuotaGuarded(
+  const handleCreateSubmit = useObjectStorageQuotaGuarded(
     {
       requirements: {
         traffic: true

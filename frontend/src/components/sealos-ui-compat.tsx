@@ -377,14 +377,35 @@ export const theme = extendTheme({
           }
         },
         'white-bg-icon': {
-          bg: '#FFF',
+          bg: 'transparent',
           color: 'grayModern.600',
-          border: '1px solid',
-          borderColor: 'grayModern.200',
-          boxShadow: colors.buttonBoxShadow,
+          border: '0',
+          boxShadow: 'none',
+          minW: 'unset',
+          minH: 'unset',
+          h: 'auto',
+          px: '4px',
+          py: '4px',
+          gap: '8px',
           _hover: {
             bg: 'grayModern.50',
             color: 'brightBlue.600'
+          },
+          _active: {
+            bg: 'grayModern.100'
+          },
+          _disabled: {
+            bg: 'transparent',
+            color: 'grayModern.400',
+            cursor: 'not-allowed',
+            opacity: 0.45,
+            _hover: {
+              bg: 'transparent',
+              color: 'grayModern.400'
+            }
+          },
+          _focusVisible: {
+            boxShadow: colors.boxShadowBlue
           }
         },
         warningConfirm: {
